@@ -53,6 +53,7 @@ internal sealed class ConfigWorkspace
             info.FileName = "dotnet";
             info.ArgumentList.Add(executable);
         }
+        info.Environment["THSSS_DATA_ROOT"] = DataRoot;
         Process.Start(info);
         message = $"已启动 {Path.GetFileName(executable)}";
         return true;

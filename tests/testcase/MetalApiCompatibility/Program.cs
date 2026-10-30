@@ -35,6 +35,7 @@ internal static class Program
     private static void TestTextureAndClear()
     {
         using var backend = new MetalRenderBackend();
+        Check(backend.Features.SupportsRgb8Textures,"Metal advertises opaque RGB texture semantics");
         using var texture = backend.CreateRenderTexture(2, 2, TextureFormat.Rgba8);
         byte[] padded = { 1,2,3,4, 5,6,7,8, 99,99,99,99, 9,10,11,12, 13,14,15,16 };
         texture.Upload(padded, 12);
@@ -60,6 +61,11 @@ internal static class Program
         using var rgbFrame = backend.CreateFramebuffer(rgb,DepthFormat.None,1,2);
         backend.BindFramebuffer(rgbFrame);
         Bytes(new byte[] {1,2,3,255,4,5,6,255},backend.ReadPixels(0,0,1,2),"RGB expanded alpha");
+        backend.Clear(ClearMask.Color,.25f,.5f,.75f,0,1,0);
+        Bytes(new byte[] {64,128,191,255},backend.ReadPixels(0,0,1,1),"RGB clear discards requested alpha zero");
+        backend.BindFramebuffer(framebuffer);
+        backend.Clear(ClearMask.Color,.25f,.5f,.75f,0,1,0);
+        Bytes(new byte[] {64,128,191,0},backend.ReadPixels(0,0,1,1),"RGBA clear retains requested alpha zero");
         backend.RestoreFramebufferBindings(framebuffer, bgraFrame);
         backend.Clear(ClearMask.Color,0,1,0,1,1,0);
         Bytes(new byte[] {255,0,0,255},backend.ReadPixels(0,0,1,1),"independent read binding");
@@ -91,11 +97,19 @@ internal static class Program
         backend.SetViewport(1,2,6,5,0.25f,0.75f);
         backend.SetScissor(true,2,1,3,4);
         backend.SetUniformBlock(0,null,new byte[16]);
+        Native.shim_clear_trace();
         backend.BeginFrame();
         Throws<InvalidOperationException>(()=>backend.BeginFrame(),"nested frame rejected");
         backend.Clear(ClearMask.Color,0,0,1,1,1,0);
-        Native.shim_clear_trace();
         backend.Draw(shader,vertices,layout,PrimitiveKind.TriangleList,0,3);
+        Equal(0L, backend.TotalSubmissions, "frame clear and draw do not submit separately");
+        Equal(1, backend.FramePasses, "clear and same-target draw share an encoder");
+        Check(!Trace.Contains("waitUntilCompleted\n", StringComparison.Ordinal), "no per-draw GPU wait inside frame");
+        vertices.Update(new byte[bytes.Length], 0);
+        byte[] snapshot = new byte[bytes.Length];
+        Marshal.Copy(Native.shim_vertex_bytes(), snapshot, 0, snapshot.Length);
+        Bytes(bytes, snapshot, "recorded draw owns a vertex snapshot before source reuse");
+        vertices.Update(bytes, 0);
         Equal(1,Native.shim_draws(),"native draw reached");
         Equal((nuint)3,Native.shim_draw_arg(0),"Metal triangle primitive enum");
         Equal((nuint)0,Native.shim_draw_arg(1),"draw vertex start");
@@ -105,13 +119,42 @@ internal static class Program
         for(int i=0;i<6;i++) Equal(expectedViewport[i],Native.shim_viewport(i),$"viewport ABI component {i}");
         nuint[] expectedScissor = {2,1,3,4};
         for(int i=0;i<4;i++) Equal(expectedScissor[i],Native.shim_scissor(i),$"scissor ABI component {i}");
-        Ordered("newRenderPipelineStateWithDescriptor:error:","commandBuffer","setRenderPipelineState:","setViewport:","setScissorRect:","setVertexBuffer:offset:atIndex:","setVertexBytes:length:atIndex:","setFragmentBytes:length:atIndex:","drawPrimitives:vertexStart:vertexCount:","endEncoding","commit","waitUntilCompleted","status");
         // The shim records draws, not shader execution. Only clear pixels are asserted.
         Bytes(new byte[] {0,0,255,255},backend.ReadPixels(0,0,1,1),"draw load action preserves prior clear");
+        Equal(1, backend.FrameSubmissions, "readback flushes the recorded commands once");
+        Ordered("commandBuffer","renderCommandEncoderWithDescriptor:","newRenderPipelineStateWithDescriptor:error:","setRenderPipelineState:","setViewport:","setScissorRect:","setVertexBuffer:offset:atIndex:","setVertexBytes:length:atIndex:","setFragmentBytes:length:atIndex:","drawPrimitives:vertexStart:vertexCount:","endEncoding","commit","waitUntilCompleted","status","getBytes:bytesPerRow:fromRegion:mipmapLevel:");
         Native.shim_clear_trace();
         backend.Draw(shader,vertices,layout,PrimitiveKind.TriangleList,1,3);
         Check(!Trace.Contains("newRenderPipelineStateWithDescriptor:error:",StringComparison.Ordinal),"pipeline cache reused");
         Equal((nuint)1,Native.shim_draw_arg(1),"nonzero vertex start forwarded");
+        using var rgbaTarget = backend.CreateRenderTexture(8,8,TextureFormat.Rgba8);
+        using var rgbTarget = backend.CreateRenderTexture(8,8,TextureFormat.Rgb8);
+        using var rgbaFrame = backend.CreateFramebuffer(rgbaTarget,DepthFormat.None,8,8);
+        using var rgbFrame = backend.CreateFramebuffer(rgbTarget,DepthFormat.None,8,8);
+        foreach (bool additive in new[] { false,true })
+        {
+            backend.SetBlendState(new(true,BlendFactor.SourceAlpha,
+                additive?BlendFactor.One:BlendFactor.InverseSourceAlpha,BlendEquation.Add));
+            // Both logical targets use native RGBA8 and no depth. Their alpha write
+            // masks still require separate pipeline cache entries.
+            var targets = new[] { rgbaFrame,rgbFrame,rgbaFrame,rgbFrame };
+            for (int i=0;i<targets.Length;i++)
+            {
+                backend.BindFramebuffer(targets[i]);
+                Native.shim_clear_trace();
+                backend.Draw(shader,vertices,layout,PrimitiveKind.TriangleList,0,3);
+                Equal((nuint)1,Native.shim_blend_arg(0),"blending enabled");
+                Equal((nuint)4,Native.shim_blend_arg(1),"RGB still weighted by source alpha");
+                Equal((nuint)(additive?1:5),Native.shim_blend_arg(2),"normal/additive destination factor");
+                Equal((nuint)4,Native.shim_blend_arg(3),"alpha source factor preserved");
+                Equal((nuint)(additive?1:5),Native.shim_blend_arg(4),"alpha destination factor preserved");
+                Equal((nuint)0,Native.shim_blend_arg(5),"RGB add operation");
+                Equal((nuint)0,Native.shim_blend_arg(6),"alpha add operation");
+                Equal((nuint)(i%2==0?15:14),Native.shim_blend_arg(7),"RGBA/RGB alpha write semantics");
+                if(i>=2)Check(!Trace.Contains("newRenderPipelineStateWithDescriptor:error:",StringComparison.Ordinal),"cached pipeline retains logical format write mask");
+            }
+        }
+        backend.BindFramebuffer(null);
         long before = backend.TotalSubmissions;
         backend.Draw(shader,vertices,layout,PrimitiveKind.TriangleList,0,0);
         Equal(before,backend.TotalSubmissions,"zero-count draw submits nothing");
@@ -121,7 +164,9 @@ internal static class Program
         Equal(draws,Native.shim_draws(),"empty scissor suppresses draw");
         backend.Present();
         Equal(0,backend.PresentedFrames,"headless present does not claim drawable presentation");
+        Equal(2,backend.FrameSubmissions,"readback and headless frame end are the only submissions");
         backend.BeginFrame(); backend.EndFrame();
+        Equal(0,backend.FrameSubmissions,"empty frame submits nothing");
         backend.Resize(3,2);
         backend.Clear(ClearMask.Color,1,0,1,1,1,0);
         Equal(24,backend.ReadPixels(0,0,3,2).Length,"resized default target");
@@ -244,6 +289,8 @@ internal static partial class Native
     [DllImport("metal_api_shim")] internal static extern int shim_draws();
     [DllImport("metal_api_shim")] internal static extern int shim_libraries();
     [DllImport("metal_api_shim")] internal static extern nuint shim_draw_arg(int index);
+    [DllImport("metal_api_shim")] internal static extern nuint shim_blend_arg(int index);
+    [DllImport("metal_api_shim")] internal static extern nint shim_vertex_bytes();
     [DllImport("metal_api_shim")] internal static extern double shim_viewport(int index);
     [DllImport("metal_api_shim")] internal static extern nuint shim_scissor(int index);
     [DllImport("metal_api_shim")] internal static extern double shim_depth();

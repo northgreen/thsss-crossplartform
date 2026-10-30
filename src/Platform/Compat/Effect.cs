@@ -81,6 +81,7 @@ public class Effect : IDisposable
         CheckDisposed();
         if (pass != 0) throw new ArgumentOutOfRangeException(nameof(pass));
         if (!_begun || _passActive) throw new InvalidOperationException("BeginPass requires Begin and no active pass.");
+        _device.FlushActiveSpriteBatch();
         _previous = _device.ActiveEffect;
         _device.ActiveEffect = this;
         _passActive = true;
@@ -94,6 +95,7 @@ public class Effect : IDisposable
     {
         CheckDisposed();
         if (!_passActive || _device.ActiveEffect != this) throw new InvalidOperationException("Effect passes must end in reverse begin order.");
+        _device.FlushActiveSpriteBatch();
         _device.ActiveEffect = _previous;
         _previous = null;
         _passActive = false;
@@ -115,6 +117,7 @@ public class Effect : IDisposable
             throw new ArgumentException($"Effect parameter {name} requires {old.GetType().Name}.");
         if (name == "xColoredTexture" && value != null && value is not Texture)
             throw new ArgumentException("xColoredTexture requires a Texture.");
+        if (_passActive) _device.FlushActiveSpriteBatch();
         _parameters[name] = value is float[] array ? array.Clone() : value;
     }
     public T GetValue<T>(EffectHandle parameter) => GetValue<T>(parameter.Name);

@@ -47,7 +47,7 @@ internal sealed class Device3D : IDisposable
 
     }
 
-    private void CreateProgram()
+    internal static ShaderSource CreateShaderSource()
     {
         const string vertex = @"#version 330 core
 layout(location=0) in vec3 aPosition;
@@ -118,9 +118,13 @@ void main() {
     if (uFogMode == 2) visibility = clamp(exp(-pow(uFogParams.z * FogDepth, 2.0)), 0.0, 1.0);
     FragColor = vec4(mix(uFogColour, colour.rgb, visibility), colour.a);
 }";
+        return new ShaderSource { Vertex = vertex, Fragment = fragment, VertexInputs = new[] { "aPosition", "aTexCoord", "aNormal", "aColour", "aSecondary" } };
+    }
+
+    private void CreateProgram()
+    {
         // One program per Device3D; the backend compiles and owns it.
-        var source = new ShaderSource { Vertex = vertex, Fragment = fragment, VertexInputs = new[] { "aPosition", "aTexCoord", "aNormal", "aColour", "aSecondary" } };
-        _shader = _device.RenderBackend.CreateShader(source);
+        _shader = _device.RenderBackend.CreateShader(CreateShaderSource());
         _program = _shader.Handle is OpenGlHandle glProgram ? glProgram.Id : 0;
         _worldLocation = _shader.GetUniformLocation("uWorld");
         _viewLocation = _shader.GetUniformLocation("uView");

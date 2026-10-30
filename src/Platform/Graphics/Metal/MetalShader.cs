@@ -7,10 +7,13 @@ using static THSSS.Graphics.Metal.MetalNative;
 namespace THSSS.Graphics.Metal;
 internal sealed unsafe class MetalShader:MetalResource,IRenderShader
 {
+    internal const int DefaultAttributeBufferIndex = 29;
+    private readonly int _vertexInputCount;
     private readonly nint _fragmentLibrary,_vertexFunction,_fragmentFunction;
-    private readonly Dictionary<string,nint> _pipelines=new();
+    private readonly Dictionary<string, (nint Native, bool UsesDefaultAttributes)> _pipelines = new();
     internal MetalShader(MetalRenderBackend owner,ShaderSource source):base(owner,CompileLibrary(owner,source.Vertex,true,source.VertexInputs))
     {
+        _vertexInputCount = source.VertexInputs.Length;
         try
         {
             _fragmentLibrary=CompileLibrary(owner,source.Fragment,false,source.VertexInputs);
@@ -32,31 +35,68 @@ internal sealed unsafe class MetalShader:MetalResource,IRenderShader
         if(lib==0)throw new InvalidOperationException("Metal MSL compilation failed: "+Error(error));return lib;
     }
     internal static string TranslateToMsl(string glsl,bool vertex)=>MetalSourceCompiler.Translate(glsl,vertex);
-    internal nint Pipeline(VertexLayout layout,BlendState blend,nint colorFormat,nint depthFormat)
+    internal (nint Native, bool UsesDefaultAttributes) Pipeline(VertexLayout layout,BlendState blend,nint colorFormat,nint depthFormat,bool opaqueColor)
     {
-        EnsureAlive();string key=$"{layout.Stride}:{blend}:{colorFormat}:{depthFormat}:"+string.Join(";",layout.Attributes.ToArray());
-        if(_pipelines.TryGetValue(key,out nint p))return p;
+        EnsureAlive();string key=$"{layout.Stride}:{blend}:{colorFormat}:{depthFormat}:{opaqueColor}:"+string.Join(";",layout.Attributes.ToArray());
+        if(_pipelines.TryGetValue(key,out var cached))return cached;
         nint d=New("MTLRenderPipelineDescriptor"),v=New("MTLVertexDescriptor");
         try
         {
             Call(d,"setVertexFunction:",_vertexFunction);Call(d,"setFragmentFunction:",_fragmentFunction);
+            bool usesVertexStream = false;
             foreach(var a in layout.Attributes.Span)
             {
+                if (a.ComponentCount <= 0) continue;
+                usesVertexStream = true;
                 nint item=Call(Call(v,"attributes"),"objectAtIndexedSubscript:",a.Location);
                 Call(item,"setFormat:",AttributeFormat(a));Call(item,"setOffset:",a.ByteOffset);Call(item,"setBufferIndex:",30);
             }
-            nint binding=Call(Call(v,"layouts"),"objectAtIndexedSubscript:",30);
-            Call(binding,"setStride:",layout.Stride);Call(binding,"setStepFunction:",1);Call(d,"setVertexDescriptor:",v);
+            // Unlike GL, Metal requires a descriptor even for optional shader inputs.
+            // Missing attributes read the GL default (0,0,0,1) from a constant stream.
+            bool usesDefaultAttributes = false;
+            for (int location = 0; location < _vertexInputCount; location++)
+            {
+                bool supplied = false;
+                foreach (var attribute in layout.Attributes.Span)
+                    if (attribute.Location == location && attribute.ComponentCount > 0) { supplied = true; break; }
+                if (supplied) continue;
+                usesDefaultAttributes = true;
+                nint item = Call(Call(v, "attributes"), "objectAtIndexedSubscript:", location);
+                Call(item, "setFormat:", 31); // MTLVertexFormatFloat4; Metal converts vector lengths.
+                Call(item, "setOffset:", 0);
+                Call(item, "setBufferIndex:", DefaultAttributeBufferIndex);
+            }
+            // Metal rejects any configured buffer layout with no referencing attribute.
+            if (usesDefaultAttributes)
+            {
+                nint defaults = Call(Call(v, "layouts"), "objectAtIndexedSubscript:", DefaultAttributeBufferIndex);
+                Call(defaults, "setStride:", 4 * sizeof(float));
+                Call(defaults, "setStepFunction:", 0); // MTLVertexStepFunctionConstant.
+                Call(defaults, "setStepRate:", 0);
+            }
+            if (usesVertexStream)
+            {
+                nint binding=Call(Call(v,"layouts"),"objectAtIndexedSubscript:",30);
+                Call(binding,"setStride:",layout.Stride);Call(binding,"setStepFunction:",1);
+            }
+            Call(d,"setVertexDescriptor:",v);
             nint c=Call(Call(d,"colorAttachments"),"objectAtIndexedSubscript:",0);
             Call(c,"setPixelFormat:",colorFormat);Call(c,"setBlendingEnabled:",blend.Enabled?1:0);
+            // MTLColorWriteMask RGB = 8|4|2, Alpha = 1. RGB targets discard alpha
+            // writes after blending; source alpha still weights the RGB normally.
+            Call(c,"setWriteMask:",opaqueColor?14:15);
             foreach(string channel in new[]{"RGB","Alpha"})
             {
                 Call(c,"setSource"+channel+"BlendFactor:",Factor(blend.Source));Call(c,"setDestination"+channel+"BlendFactor:",Factor(blend.Destination));
                 Call(c,"set"+(channel=="RGB"?"Rgb":"Alpha")+"BlendOperation:",(int)blend.Equation-1);
             }
             Call(d,"setDepthAttachmentPixelFormat:",depthFormat);if(depthFormat==260)Call(d,"setStencilAttachmentPixelFormat:",depthFormat);
-            nint error=0;p=Call(Owner.Device,"newRenderPipelineStateWithDescriptor:error:",d,(nint)(&error));
-            if(p==0)throw new InvalidOperationException("Metal pipeline creation failed: "+Error(error));_pipelines.Add(key,p);return p;
+            nint error=0;
+            nint native = Call(Owner.Device,"newRenderPipelineStateWithDescriptor:error:",d,(nint)(&error));
+            if(native==0)throw new InvalidOperationException("Metal pipeline creation failed: "+Error(error));
+            var pipeline = (Native: native, UsesDefaultAttributes: usesDefaultAttributes);
+            _pipelines.Add(key, pipeline);
+            return pipeline;
         }
         finally{Release(d);Release(v);}
     }
@@ -84,6 +124,6 @@ internal sealed unsafe class MetalShader:MetalResource,IRenderShader
     private void Legacy(int location){EnsureAlive();if(location>=0)throw new ArgumentException("Metal uniforms use SetUniformBlock.");}
     public override void Dispose()
     {
-        if(Native==0)return;foreach(nint p in _pipelines.Values)Release(p);_pipelines.Clear();Release(_vertexFunction);Release(_fragmentFunction);Release(_fragmentLibrary);base.Dispose();
+        if(Native==0)return;foreach(var p in _pipelines.Values)Release(p.Native);_pipelines.Clear();Release(_vertexFunction);Release(_fragmentFunction);Release(_fragmentLibrary);base.Dispose();
     }
 }

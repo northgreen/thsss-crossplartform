@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <Import Project="../../../TargetFrameworks.props" />
+  <PropertyGroup><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../../src/Platform/Compat/Matrix.cs" Link="Matrix.cs" />
     <Compile Include="../../../src/Platform/Compat/MathTypes.cs" Link="MathTypes.cs" />

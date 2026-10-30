@@ -169,6 +169,14 @@ namespace SlimDX.XAudio2
             lock (_engine.Sync)
             {
                 EnsureUsable();
+                // Menu sounds set the same pan before every playback. A no-op must
+                // not pause, reset and refill the native audio queue.
+                if (_matrix.AsSpan().SequenceEqual(coefficients)) return;
+                if (_queued.Count == 0 && _playbacks.Count == 0)
+                {
+                    _matrix = coefficients;
+                    return;
+                }
                 bool running = _running;
                 _running = false;
                 _output.Pause();

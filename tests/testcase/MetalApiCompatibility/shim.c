@@ -16,6 +16,7 @@ struct Node {
     char *type, *text;
     int owned, released, phase;
     U width,height,format,length,load,stride,offset,index;
+    U blend[8];
     unsigned char *bytes;
     Node *texture,*color,*depth,*stencil,*attributes,*layouts,*items[32];
     Node *pass,*command,*vertex,*fragment,*pipeline,*view,*layer,*drawable;
@@ -25,6 +26,8 @@ static char trace[262144];
 static size_t trace_length;
 static int live, failures, draws, libraries, fail_command;
 static U draw_start,draw_count,draw_kind,vertex_index;
+static Node *last_vertex_buffer,*last_pipeline;
+static U last_vertex_offset;
 static Viewport viewport;
 static Scissor scissor;
 static double clear_depth;
@@ -40,7 +43,7 @@ static void require(int ok, const char *message) {
 }
 static Node *node(const char *type, int owned) {
     Node *n=calloc(1,sizeof(*n)); require(n!=NULL,"allocation");
-    n->type=strdup(type); n->owned=owned; live+=owned; return n;
+    n->type=strdup(type); n->owned=owned; n->blend[7]=15; live+=owned; return n;
 }
 static void event(const char *s) {
     size_t len=strlen(s); require(trace_length+len+2<sizeof(trace),"trace overflow");
@@ -58,6 +61,8 @@ int shim_failures(void) { return failures; }
 int shim_draws(void) { return draws; }
 int shim_libraries(void) { return libraries; }
 U shim_draw_arg(int i) { return i==0?draw_kind:i==1?draw_start:i==2?draw_count:vertex_index; }
+U shim_blend_arg(int i) { require(last_pipeline && last_pipeline->color && i>=0 && i<8,"bound pipeline blend descriptor"); return last_pipeline->color->blend[i]; }
+const void *shim_vertex_bytes(void) { require(last_vertex_buffer!=NULL,"bound vertex snapshot"); return last_vertex_buffer->bytes+last_vertex_offset; }
 double shim_viewport(int i) { const double *p=(const double *)&viewport; return p[i]; }
 U shim_scissor(int i) { const U *p=(const U *)&scissor; return p[i]; }
 double shim_depth(void) { return clear_depth; }
@@ -106,6 +111,7 @@ static U integer_message(Node *o,const char *s,U a,U b,U c,U d) {
     if (!strcmp(s,"setHeight:")) { o->height=a; return 0; }
     if (!strcmp(s,"setPixelFormat:")) { o->format=a; return 0; }
     if (!strcmp(s,"setStride:")) { o->stride=a; return 0; }
+    if (!strcmp(s,"setStepRate:")) return 0;
     if (!strcmp(s,"setOffset:")) { o->offset=a; return 0; }
     if (!strcmp(s,"setBufferIndex:")) { o->index=a; return 0; }
     if (!strcmp(s,"setFormat:")) { o->format=a; return 0; }
@@ -129,7 +135,7 @@ static U integer_message(Node *o,const char *s,U a,U b,U c,U d) {
     }
     if (!strcmp(s,"commandBuffer")) return (U)node("command",0);
     if (!strcmp(s,"renderCommandEncoderWithDescriptor:")) {
-        require(o->phase==0,"encoder before commit"); Node *n=node("encoder",0); n->command=o; n->pass=(Node *)a; o->phase=1;
+        require(o->phase==0 || o->phase==2,"encoder before commit, after prior encoder ends"); Node *n=node("encoder",0); n->command=o; n->pass=(Node *)a; o->phase=1;
         Node *color=n->pass->color?n->pass->color->items[0]:NULL;
         if (color && color->texture && color->load==2) {
             Node *t=color->texture; Color v=color->clear;
@@ -163,19 +169,32 @@ static U integer_message(Node *o,const char *s,U a,U b,U c,U d) {
         if (desc->vertex->text && !strcmp(desc->vertex->text,"pv")) {
             require(desc->fragment->text && !strcmp(desc->fragment->text,"pf"),"presentation fragment entry");
             require(desc->color && desc->color->items[0] && desc->color->items[0]->format==80,"BGRA presentation pipeline");
-            Node *n=node("pipeline",1); n->phase=1; *(U *)b=0; return (U)n;
+            Node *n=node("pipeline",1); n->phase=1; n->color=desc->color->items[0]; *(U *)b=0; return (U)n;
         }
         Node *v=desc->vertex;
         require(v->attributes && v->attributes->items[0] && v->layouts && v->layouts->items[30],"vertex descriptor arrays");
+        /* Metal rejects nonzero-stride layouts that no attribute references. */
+        for (U index=0;index<31;index++) {
+            Node *layout=v->layouts->items[index];
+            if (!layout || !layout->stride) continue;
+            int referenced=0;
+            for (U location=0;location<31;location++) {
+                Node *item=v->attributes->items[location];
+                if (item && item->format && item->index==index) { referenced=1; break; }
+            }
+            require(referenced,"nonzero-stride vertex buffer layout must have a referencing attribute");
+        }
         Node *attribute=v->attributes->items[0], *binding=v->layouts->items[30];
         require(attribute->format==29 && attribute->offset==0 && attribute->index==30 && binding->stride==8,"float2 vertex descriptor format/offset/slot/stride");
         require(desc->color && desc->color->items[0] && desc->color->items[0]->format==70,"RGBA pipeline color format");
-        *(U *)b=0; return (U)node("pipeline",1);
+        Node *n=node("pipeline",1); n->color=desc->color->items[0]; *(U *)b=0; return (U)n;
     }
     if (!strcmp(s,"newDepthStencilStateWithDescriptor:") || !strcmp(s,"newSamplerStateWithDescriptor:")) { require(a!=0,"state descriptor"); return (U)node("state",1); }
-    if (!strcmp(s,"setRenderPipelineState:")) { o->pipeline=(Node *)a; return 0; }
+    if (!strcmp(s,"setRenderPipelineState:")) { o->pipeline=(Node *)a; last_pipeline=o->pipeline; return 0; }
     if (!strcmp(s,"setVertexBuffer:offset:atIndex:")) {
-        require(a && b==0 && c==30,"vertex buffer slot/offset ABI"); o->vertex=(Node *)a; vertex_index=c; return 0;
+        require(a && c==30 && b<((Node *)a)->length,"vertex buffer slot/offset ABI");
+        o->vertex=(Node *)a; o->offset=b; vertex_index=c;
+        last_vertex_buffer=o->vertex; last_vertex_offset=b; return 0;
     }
     if (!strcmp(s,"setVertexBytes:length:atIndex:") || !strcmp(s,"setFragmentBytes:length:atIndex:")) { require(a && b>0 && c<30,"uniform bytes ABI"); return 0; }
     if (!strcmp(s,"setFragmentTexture:atIndex:")) {
@@ -189,10 +208,12 @@ static U integer_message(Node *o,const char *s,U a,U b,U c,U d) {
             present_source=o->texture; draws++; return 0;
         }
         require(o->command && o->command->phase==1 && o->pipeline && o->vertex,"draw requires active encoder/pipeline/vertices");
-        require(a==3 && c==3 && o->vertex->length>=24,"fixture triangle draw arguments");
+        require(a==3 && c==3 && o->offset+(b+c)*8<=o->vertex->length,"fixture triangle draw arguments");
         draws++; draw_kind=a; draw_start=b; draw_count=c; return 0;
     }
-    static const char *setters[]={"setTextureType:","setUsage:","setStorageMode:","setStoreAction:","setClearStencil:","setFormat:","setStepFunction:","setVertexFunction:","setFragmentFunction:","setVertexDescriptor:","setBlendingEnabled:","setSourceRGBBlendFactor:","setSourceAlphaBlendFactor:","setDestinationRGBBlendFactor:","setDestinationAlphaBlendFactor:","setRgbBlendOperation:","setAlphaBlendOperation:","setDepthAttachmentPixelFormat:","setStencilAttachmentPixelFormat:","setCullMode:","setFrontFacingWinding:","setDepthCompareFunction:","setDepthWriteEnabled:","setDepthStencilState:","setFragmentTexture:atIndex:","setFragmentSamplerState:atIndex:","setSAddressMode:","setTAddressMode:","setMinFilter:","setMagFilter:","setMipFilter:","setMaxAnisotropy:"};
+    static const char *blend_setters[]={"setBlendingEnabled:","setSourceRGBBlendFactor:","setDestinationRGBBlendFactor:","setSourceAlphaBlendFactor:","setDestinationAlphaBlendFactor:","setRgbBlendOperation:","setAlphaBlendOperation:","setWriteMask:"};
+    for (U i=0;i<sizeof(blend_setters)/sizeof(*blend_setters);i++) if (!strcmp(s,blend_setters[i])) { o->blend[i]=a; return 0; }
+    static const char *setters[]={"setTextureType:","setUsage:","setStorageMode:","setStoreAction:","setClearStencil:","setFormat:","setStepFunction:","setVertexFunction:","setFragmentFunction:","setVertexDescriptor:","setDepthAttachmentPixelFormat:","setStencilAttachmentPixelFormat:","setCullMode:","setFrontFacingWinding:","setDepthCompareFunction:","setDepthWriteEnabled:","setDepthStencilState:","setFragmentTexture:atIndex:","setFragmentSamplerState:atIndex:","setSAddressMode:","setTAddressMode:","setMinFilter:","setMagFilter:","setMipFilter:","setMaxAnisotropy:"};
     for (size_t i=0;i<sizeof(setters)/sizeof(*setters);i++) if (!strcmp(s,setters[i])) return 0;
     fprintf(stderr,"unsupported selector: %s (%s)\n",s,o->type); abort();
 }

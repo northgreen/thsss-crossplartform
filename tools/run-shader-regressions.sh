@@ -2,6 +2,7 @@
 # Rendering suites driven by DejaGnu. Set THSSS_TEST_REPORT_DIR to keep shader.sum/shader.log.
 set -eu
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/tools/dotnet-framework.sh"
 export THSSS_TEST_ROOT="$ROOT"
 REPORT=${THSSS_TEST_REPORT_DIR:-$(mktemp -d)}
 mkdir -p "$REPORT"

@@ -80,8 +80,10 @@ public class XAudio2_Player
 					num
 				};
 			}
+			sourceVoice.Stop();
+			sourceVoice.FlushSourceBuffers();
 			sourceVoice.SetOutputMatrix(inputChannels, 2, matrix);
-			Reset();
+			sourceVoice.SubmitSourceBuffer(buffer);
 			sourceVoice.Start(PlayFlags.None);
 		}
 	}
@@ -114,16 +116,6 @@ public class XAudio2_Player
 		}
 		catch
 		{
-		}
-	}
-
-	private void Reset()
-	{
-		if (loadSuccess)
-		{
-			sourceVoice.Stop();
-			sourceVoice.FlushSourceBuffers();
-			sourceVoice.SubmitSourceBuffer(buffer);
 		}
 	}
 

@@ -1,5 +1,6 @@
 // Cross-platform sprite batching (replaces SlimDX.Direct3D9.Sprite, which used D3DXSprite).
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using Silk.NET.OpenGL;
 using THSSS.Graphics;
@@ -14,7 +15,7 @@ namespace SlimDX.Direct3D9;
 /// </summary>
 public class Sprite : IDisposable
 {
-    private const int FloatsPerVertex = 9;   // x, y, z, u, v, r, g, b, a
+    private const int FloatsPerVertex = 10;  // x, y, z, w, u, v, r, g, b, a
     private const int VerticesPerQuad = 6;   // two triangles
     private const int MaxBatchSize = 2048;
 
@@ -24,40 +25,35 @@ public class Sprite : IDisposable
 
     private readonly uint _vao;
     private readonly uint _vbo;
-    private readonly uint _shader;
     private readonly THSSS.Graphics.IRenderShader _backendShader;
     private readonly THSSS.Graphics.IRenderBuffer _backendBuffer;
     private static readonly THSSS.Graphics.VertexLayout SpriteLayout = new(
         FloatsPerVertex * sizeof(float),
         new[]
         {
-            new THSSS.Graphics.VertexAttribute(0, 3, THSSS.Graphics.VertexAttributeType.Float, false, 0),
-            new THSSS.Graphics.VertexAttribute(1, 2, THSSS.Graphics.VertexAttributeType.Float, false, 3 * sizeof(float)),
-            new THSSS.Graphics.VertexAttribute(2, 4, THSSS.Graphics.VertexAttributeType.Float, false, 5 * sizeof(float)),
+            new THSSS.Graphics.VertexAttribute(0, 4, THSSS.Graphics.VertexAttributeType.Float, false, 0),
+            new THSSS.Graphics.VertexAttribute(1, 2, THSSS.Graphics.VertexAttributeType.Float, false, 4 * sizeof(float)),
+            new THSSS.Graphics.VertexAttribute(2, 4, THSSS.Graphics.VertexAttributeType.Float, false, 6 * sizeof(float)),
         });
     private readonly int _textureLocation;
-    private readonly int _glTextureLocation;
-    private THSSS.Graphics.IRenderBuffer _uniformBlock;
+    private readonly THSSS.Graphics.IRenderBuffer _uniformBlock;
+    private readonly byte[] _uniformData = new byte[128];
 
     private int _batchCount;
-    private IRenderHandle _currentTexture;
     private Texture _currentTextureObject;
     private Matrix _transform = Matrix.Identity;
+    private bool _transformIsIdentity = true;
     private bool _disposed;
     private SpriteFlags _flags;
     private (BlendingFactor Source, BlendingFactor Destination, BlendOperation Operation, bool Enabled) _savedBlend;
     private bool _savedDepth, _savedCull;
+    private readonly Dictionary<(int, SamplerState), int> _savedSamplers = new();
 
     public Sprite(Device device)
     {
         _device = device;
         _gl = device.GL;
-        if (device.GL != null) _shader = CreateShader(out _glTextureLocation);
-        _backendShader = device.RenderBackend.CreateShader(new THSSS.Graphics.ShaderSource
-        {
-            Vertex = SpriteVertexSource, Fragment = SpriteFragmentSource,
-            VertexInputs = new[] { "aPosition", "aTexCoord", "aColor" },
-        });
+        _backendShader = device.RenderBackend.CreateShader(Source);
         _textureLocation = _backendShader.GetUniformLocation("uTexture");
         _backendBuffer = device.RenderBackend.CreateBuffer(THSSS.Graphics.BufferKind.Vertex,
             MaxBatchSize * VerticesPerQuad * FloatsPerVertex * sizeof(float));
@@ -70,16 +66,16 @@ public class Sprite : IDisposable
     public bool Disposed => _disposed;
 
     /// <summary>
-    /// D3DXSprite applies this matrix to the stored vertices; MySprite sets it,
-    /// draws, then restores Identity. Flush first so pending quads keep the old one.
+    /// Snapshot the transform at Draw, so changing it does not split a texture batch.
+    /// Homogeneous coordinates preserve the shader's clipping and interpolation.
     /// </summary>
     public Matrix Transform
     {
         get => _transform;
         set
         {
-            if (_batchCount > 0) Flush();
             _transform = value;
+            _transformIsIdentity = value.ToSystemMatrix().IsIdentity;
         }
     }
 
@@ -87,12 +83,20 @@ public class Sprite : IDisposable
 
     public void Begin(SpriteFlags flags)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_device.ActiveSpriteBatch != null)
+            throw new InvalidOperationException("End the active sprite batch before beginning another.");
         _batchCount = 0;
-        _currentTexture = null;
+        _currentTextureObject = null;
         _flags = flags;
         _savedBlend = _device.CaptureBlendState();
+        if ((flags & SpriteFlags.DoNotSaveState) == 0) _device.CaptureSamplerStates(_savedSamplers);
         (_savedDepth, _savedCull) = _device.RenderBackend.QueryRasterState();
-        if ((flags & SpriteFlags.DoNotModifyRenderState) != 0) return;
+        if ((flags & SpriteFlags.DoNotModifyRenderState) != 0)
+        {
+            _device.ActiveSpriteBatch = this;
+            return;
+        }
         // Blend factors were just set by the 3D pass (D3D keeps them as device
         // state); honour them here instead of forcing alpha blending, then reset
         // so later sprites use the classic SrcAlpha/1-SrcAlpha.
@@ -103,15 +107,22 @@ public class Sprite : IDisposable
             _device.SetRenderState(RenderState.DestinationBlend, Blend.InverseSourceAlpha);
         }
         _device.ApplyBlendState();
+        _device.SetSpriteSamplerDefaults();
         _device.RenderBackend.SetRasterState(false, false);
+        _device.ActiveSpriteBatch = this;
     }
 
     public void End()
     {
+        if (_device.ActiveSpriteBatch != this)
+            throw new InvalidOperationException("Sprite.End requires this batch to be active.");
         Flush();
+        _device.ActiveSpriteBatch = null;
         if ((_flags & SpriteFlags.DoNotSaveState) != 0) return;
         _device.RestoreBlendState(_savedBlend);
         _device.RenderBackend.SetRasterState(_savedDepth, _savedCull);
+        _device.RestoreSamplerStates(_savedSamplers);
+        _savedSamplers.Clear();
     }
 
     public void SetTransform(Matrix transform) => Transform = transform;
@@ -134,9 +145,11 @@ public class Sprite : IDisposable
     public void Draw(Texture texture, Rectangle? sourceRect, Vector3? rotationCenter, Vector3 position, Color4 color)
     {
         if (texture == null) return;
-        if (_batchCount > 0 && !ReferenceEquals(_currentTexture, texture.Handle)) Flush();
+        if (_device.ActiveSpriteBatch != this)
+            throw new InvalidOperationException("Sprite.Draw requires Begin.");
+        // Some native backends return a new handle wrapper on each access.
+        if (_batchCount > 0 && !ReferenceEquals(_currentTextureObject, texture)) Flush();
         if (_batchCount >= MaxBatchSize) Flush();
-        _currentTexture = texture.Handle;
         _currentTextureObject = texture;
 
         var (u0, v0, u1, v1) = AtlasCoordinates(texture, sourceRect);
@@ -169,9 +182,12 @@ public class Sprite : IDisposable
 
     private void WriteVertex(ref int offset, float x, float y, float z, float u, float v, Color4 color)
     {
-        _vertices[offset++] = x;
-        _vertices[offset++] = y;
-        _vertices[offset++] = z;
+        var position = new Vector4(x, y, z, 1f);
+        if (!_transformIsIdentity) position = Vector4.Transform(position, _transform);
+        _vertices[offset++] = position.X;
+        _vertices[offset++] = position.Y;
+        _vertices[offset++] = position.Z;
+        _vertices[offset++] = position.W;
         _vertices[offset++] = u;
         _vertices[offset++] = v;
         _vertices[offset++] = color.Red;
@@ -188,7 +204,7 @@ public class Sprite : IDisposable
                 (float)(r.X + r.Width) / texture.Width, (float)(r.Y + r.Height) / texture.Height);
     }
 
-    private void Flush()
+    public void Flush()
     {
         if (_batchCount == 0) return;
 
@@ -207,16 +223,20 @@ public class Sprite : IDisposable
         var effect = _device.ActiveEffect;
         if (_gl != null) _gl.ActiveTexture(TextureUnit.Texture0);
         _device.RenderBackend.BindTexture(_currentTextureObject?.RenderTexture);
+        // Apply the device's current sprite sampler before an FX pass optionally
+        // replaces it. Metal/Vulkan retain sampler state across unrelated draws.
+        _device.ApplySamplerState();
         if (effect != null)
         {
             effect.SourceTexture = _currentTextureObject;
-            effect.Bind(_transform, projection);
+            effect.Bind(Matrix.Identity, projection);
         }
         else
         {
-            if (_gl != null) _gl.UseProgram(_shader);
-            _device.RenderBackend.SetUniformBlock(0, _uniformBlock,
-                BuildUniformBlock(projection, _transform));
+            _backendShader.Use();
+            WriteMatrix(_uniformData.AsSpan(0, 64), Matrix.Identity);
+            WriteMatrix(_uniformData.AsSpan(64, 64), projection);
+            _device.RenderBackend.SetUniformBlock(0, _uniformBlock, _uniformData);
         }
 
         _device.ApplyBlendState();
@@ -261,22 +281,26 @@ public class Sprite : IDisposable
     /// std140 layout for SpriteUniforms: uTransform then uProjection, each a 4x4 matrix
     /// stored column-major, so the block is a flat 128-byte buffer.
     /// </summary>
-    private static byte[] BuildUniformBlock(Matrix projection, Matrix transform)
+    private static void WriteMatrix(Span<byte> destination, Matrix matrix)
     {
-        var bytes = new byte[128];
-        WriteMatrix(bytes, 0, transform.ToOpenGLMatrix());
-        WriteMatrix(bytes, 64, projection.ToOpenGLMatrix());
-        return bytes;
+        ReadOnlySpan<float> values = stackalloc float[]
+        {
+            matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+            matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+            matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+            matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+        };
+        System.Runtime.InteropServices.MemoryMarshal.AsBytes(values).CopyTo(destination);
     }
 
-    private static void WriteMatrix(byte[] destination, int offset, ReadOnlySpan<float> matrix)
+    internal static ShaderSource Source => new()
     {
-        for (int i = 0; i < 16; i++)
-            BitConverter.TryWriteBytes(destination.AsSpan(offset + i * 4, 4), matrix[i]);
-    }
+        Vertex = SpriteVertexSource, Fragment = SpriteFragmentSource,
+        VertexInputs = new[] { "aPosition", "aTexCoord", "aColor" },
+    };
 
     private const string SpriteVertexSource = @"#version 330 core
-layout (location = 0) in vec3 aPosition;
+layout (location = 0) in vec4 aPosition;
 layout (location = 1) in vec2 aTexCoord;
 layout (location = 2) in vec4 aColor;
 layout (std140) uniform SpriteUniforms {
@@ -287,7 +311,7 @@ out vec2 TexCoord;
 out vec4 Color;
 void main()
 {
-    gl_Position = uProjection * uTransform * vec4(aPosition, 1.0);
+    gl_Position = uProjection * uTransform * aPosition;
     TexCoord = aTexCoord;
     Color = aColor;
 }";
@@ -302,39 +326,6 @@ void main()
     FragColor = texture(uTexture, TexCoord) * Color;
 }";
 
-    private uint CreateShader(out int textureLocation)
-    {
-        const string vertexSource = SpriteVertexSource;
-
-        const string fragmentSource = SpriteFragmentSource;
-
-        uint vertexShader = Compile(ShaderType.VertexShader, vertexSource);
-        uint fragmentShader = Compile(ShaderType.FragmentShader, fragmentSource);
-        uint program = _gl.CreateProgram();
-        _gl.AttachShader(program, vertexShader);
-        _gl.AttachShader(program, fragmentShader);
-        _gl.LinkProgram(program);
-        _gl.GetProgram(program, ProgramPropertyARB.LinkStatus, out int linked);
-        if (linked == 0) throw new InvalidOperationException($"Sprite shader link failed: {_gl.GetProgramInfoLog(program)}");
-        _gl.DetachShader(program, vertexShader);
-        _gl.DetachShader(program, fragmentShader);
-        _gl.DeleteShader(vertexShader);
-        _gl.DeleteShader(fragmentShader);
-
-        textureLocation = _gl.GetUniformLocation(program, "uTexture");
-        return program;
-    }
-
-    private uint Compile(ShaderType type, string source)
-    {
-        uint shader = _gl.CreateShader(type);
-        _gl.ShaderSource(shader, source);
-        _gl.CompileShader(shader);
-        _gl.GetShader(shader, ShaderParameterName.CompileStatus, out int compiled);
-        if (compiled == 0) throw new InvalidOperationException($"Sprite {type} failed: {_gl.GetShaderInfoLog(shader)}");
-        return shader;
-    }
-
     private (uint Vao, uint Vbo) CreateBuffers()
     {
         uint vao = _gl.GenVertexArray();
@@ -345,11 +336,11 @@ void main()
             (ReadOnlySpan<float>)_vertices, BufferUsageARB.DynamicDraw);
 
         const uint stride = FloatsPerVertex * sizeof(float);
-        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, stride, 0);
+        _gl.VertexAttribPointer(0, 4, VertexAttribPointerType.Float, false, stride, 0);
         _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, stride, 3 * sizeof(float));
+        _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, stride, 4 * sizeof(float));
         _gl.EnableVertexAttribArray(1);
-        _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, 5 * sizeof(float));
+        _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, 6 * sizeof(float));
         _gl.EnableVertexAttribArray(2);
 
         _gl.BindVertexArray(0);
@@ -363,9 +354,9 @@ void main()
     public void Dispose()
     {
         if (_disposed) return;
+        if (_device.ActiveSpriteBatch == this) End();
         if (_vao != 0) _gl.DeleteVertexArray(_vao);
         if (_vbo != 0) _gl.DeleteBuffer(_vbo);
-        if (_shader != 0) _gl.DeleteProgram(_shader);
         _backendShader.Dispose();
         _backendBuffer.Dispose();
         _uniformBlock.Dispose();

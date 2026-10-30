@@ -11,8 +11,8 @@ set output $env(THSSS_MAC_CONTRACT_DIR)
 # These fixtures are already built by the runner, so the committed DLLs are used
 # directly rather than going through `dotnet run` and rebuilding per case.
 proc built {suite args} {
-    global root
-    set command [list dotnet [file join $root tests testcase $suite bin Debug net8.0 $suite.dll]]
+    global root env
+    set command [list dotnet [file join $root tests testcase $suite bin Debug $env(THSSS_FRAMEWORK) $suite.dll]]
     if {[llength $args] > 0} { lappend command {*}$args }
     return $command
 }

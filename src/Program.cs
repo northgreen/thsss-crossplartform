@@ -2,6 +2,7 @@
 // RenderForm + Direct3D9 device the original game created.
 using System;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
 using SlimDX.Direct3D9;
@@ -20,6 +21,7 @@ public static class Program
     private static WindowInputBridge _inputBridge;
     private static Game_Main _game;
     private static int _frame;
+    private static ExceptionDispatchInfo _renderFailure;
 
     [STAThread]
     public static void Main(string[] args)
@@ -66,11 +68,10 @@ public static class Program
         _window = Window.Create(options);
         _window.Load += OnLoad;
         _window.Render += OnRender;
-        try { _window.Run(); }
-        catch (Exception runError)
+        try
         {
-            Console.Error.WriteLine("[Run] " + runError);
-            throw;
+            _window.Run();
+            _renderFailure?.Throw();
         }
         finally
         {
@@ -126,10 +127,28 @@ public static class Program
     }
 
     private static readonly System.Diagnostics.Stopwatch FrameClock = new();
+    private static readonly bool TraceFps = Environment.GetEnvironmentVariable("THSSS_DIAG_FPS") == "1";
     private static int _performanceFrames;
     private static double _renderMilliseconds;
+#if THSSS_MACOS
+    private static long _metalSubmissions, _metalDraws, _metalPasses, _metalUploadBytes;
+    private static double _metalWaitMilliseconds;
+#endif
 
     private static void OnRender(double deltaTime)
+    {
+        if (_renderFailure != null) return;
+        try { RenderFrame(deltaTime); }
+        catch (Exception error)
+        {
+            // Silk 2.23 clears its render-loop flag only after callbacks return.
+            // Let it unwind normally, then rethrow with the original stack in Run.
+            _renderFailure = ExceptionDispatchInfo.Capture(error);
+            _window.IsClosing = true;
+        }
+    }
+
+    private static void RenderFrame(double deltaTime)
     {
         if (_game == null || _window.IsClosing) return;
         _inputBridge.ApplyCursor();
@@ -151,20 +170,44 @@ public static class Program
 
         // MainProcess owns update + clear + draw for the whole frame, so it has to run
         // inside the render callback: GLFW presents the buffer right after it returns.
+        if (TraceFps && !FrameClock.IsRunning) FrameClock.Start();
         long renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
         var backend = _game.DeviceMain.RenderBackend;
         backend.BeginFrame();
         try { _game.MainProcess(); }
         finally { backend.EndFrame(); }
-        if (Environment.GetEnvironmentVariable("THSSS_DIAG_FPS") == "1")
+        if (TraceFps)
         {
             _renderMilliseconds += System.Diagnostics.Stopwatch.GetElapsedTime(renderStart).TotalMilliseconds;
-            if (!FrameClock.IsRunning) FrameClock.Start();
-            if (++_performanceFrames == 120)
+#if THSSS_MACOS
+            if (backend is THSSS.Graphics.Metal.MetalRenderBackend metal)
             {
-                Console.WriteLine($"[FPS] frame={_frame} fps={120 / FrameClock.Elapsed.TotalSeconds:F2} mainMs={_renderMilliseconds / 120:F2}" +
-                    (_game.DeviceMain.RenderBackend is THSSS.Graphics.Vulkan.VulkanRenderBackend vk
-                        ? $" submits={vk.FrameSubmissions} draws={vk.FrameDraws}" : ""));
+                _metalSubmissions += metal.FrameSubmissions;
+                _metalDraws += metal.FrameDraws;
+                _metalPasses += metal.FramePasses;
+                _metalUploadBytes += metal.FrameUploadBytes;
+                _metalWaitMilliseconds += metal.FrameWaitMilliseconds;
+            }
+#endif
+            _performanceFrames++;
+            double seconds = FrameClock.Elapsed.TotalSeconds;
+            if (seconds >= 1.0)
+            {
+                double frames = _performanceFrames;
+                string details = backend is THSSS.Graphics.Vulkan.VulkanRenderBackend vk
+                    ? $" submits={vk.FrameSubmissions} draws={vk.FrameDraws}" : "";
+#if THSSS_MACOS
+                if (backend is THSSS.Graphics.Metal.MetalRenderBackend)
+                {
+                    details = $" submits={_metalSubmissions / frames:F2} draws={_metalDraws / frames:F1}" +
+                        $" passes={_metalPasses / frames:F1} waitMs={_metalWaitMilliseconds / frames:F2}" +
+                        $" uploadKiB={_metalUploadBytes / frames / 1024:F1}";
+                }
+                _metalSubmissions = _metalDraws = _metalPasses = _metalUploadBytes = 0;
+                _metalWaitMilliseconds = 0;
+#endif
+                Console.WriteLine($"[FPS] frame={_frame} fps={frames / seconds:F2} mainMs={_renderMilliseconds / frames:F2}" +
+                    $" renderer={backend.Kind}" + details);
                 _performanceFrames = 0; _renderMilliseconds = 0; FrameClock.Restart();
             }
         }

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../TargetFrameworks.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/THSSS.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="!$([MSBuild]::IsOSPlatform('OSX'))">
+    <Compile Include="../../src/Platform/Graphics/Metal/MetalSourceCompiler.cs" Link="MetalSourceCompiler.cs" />
+    <Compile Include="../../src/Platform/Graphics/Vulkan/SpirVCompiler.cs" Link="SpirVCompiler.cs" />
+  </ItemGroup>
+</Project>

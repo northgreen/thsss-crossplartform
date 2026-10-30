@@ -35,6 +35,28 @@ internal static class SpriteChecks
         if (blended[0] < 240 || blended[1] > 15)
             throw new Exception("Transparent Sprite must preserve opaque background (Vulkan SetRenderState must not be skipped): " + string.Join(',', blended));
         Console.WriteLine("PASS: Vulkan Sprite alpha blend preserves background under transparent overlay");
+        using var filterImage = new Image<Rgba32>(2,1);
+        filterImage[0,0] = new Rgba32(255,0,0,255);
+        filterImage[1,0] = new Rgba32(0,0,255,255);
+        using var filterTexture = Texture.FromImage(device,filterImage);
+        device.SetSamplerState(0,SamplerState.MinFilter,TextureFilter.Point);
+        device.SetSamplerState(0,SamplerState.MagFilter,TextureFilter.Point);
+        device.ApplySamplerState();
+        sprite.Transform = Matrix.Scaling(4f,8f,1f);
+        sprite.Begin(SpriteFlags.AlphaBlend);
+        sprite.Draw(filterTexture,Vector3.Zero,Vector3.Zero,Color4.White);
+        sprite.End();
+        var filtered = backend.ReadPixels(3,4,1,1);
+        if (filtered[0] < 40 || filtered[0] > 220 || filtered[2] < 40 || filtered[2] > 220)
+            throw new Exception("Sprite must replace inherited point sampling with linear interpolation: " + string.Join(',',filtered));
+        sprite.Begin(SpriteFlags.AlphaBlend | SpriteFlags.DoNotModifyRenderState);
+        sprite.Draw(filterTexture,Vector3.Zero,Vector3.Zero,Color4.White);
+        sprite.End();
+        var restored = backend.ReadPixels(3,4,1,1);
+        if (restored[0] < 240 || restored[2] > 15)
+            throw new Exception("Sprite.End must restore point sampling and DoNotModifyRenderState must preserve it: " + string.Join(',',restored));
+        sprite.Transform = Matrix.Identity;
+        Console.WriteLine("PASS: Sprite linear sampler defaults, state restore and DoNotModifyRenderState");
         device.GameWidth = 640; device.GameHeight = 480;
         device.FramebufferWidth = 640; device.FramebufferHeight = 480;
         backend.BindFramebuffer(null);

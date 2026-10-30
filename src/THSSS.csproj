@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../TargetFrameworks.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Shooting</RootNamespace>
     <AssemblyName>THSSS</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -57,5 +57,8 @@
     <Content Include="../game/BPic/**/*" Link="BPic/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../game/Setting.INI" Link="Setting.INI" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="VulkanBackend" /></ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VulkanBackend" />
+    <InternalsVisibleTo Include="MetalShaderExporter" />
+  </ItemGroup>
 </Project>

@@ -4,7 +4,7 @@
 # What ships:
 #   * the game and the Config program, published for one (or more) runtimes
 #   * only the read-only game assets (BGM, Image, Model, FX, Story, CS, Sound, BPic)
-#   * a default Setting.INI
+#   * the current Setting.INI (no saves/replays)
 #   * launcher scripts and a short README
 #
 # What never ships:
@@ -15,18 +15,21 @@
 #   perl tools/make-dist.pl                  # linux-x64, framework-dependent
 #   perl tools/make-dist.pl --self-contained # bundle the .NET runtime
 #   perl tools/make-dist.pl --rid win-x64,osx-arm64
+#   perl tools/make-dist.pl --rid osx-arm64 --framework net8.0 --self-contained
 #   perl tools/make-dist.pl --skip-build     # reuse previous publish output
 #   perl tools/make-dist.pl --out dist/thsss-0.1
 
 use strict;
 use warnings;
 use Digest::SHA;
+use Cwd qw(abs_path);
 use Fcntl qw(:mode);
 use File::Basename qw(basename dirname);
 use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
 use File::Spec;
 use Getopt::Long qw(GetOptions);
+use JSON::PP qw(decode_json);
 use feature qw(say);
 use POSIX qw(strftime);
 
@@ -40,11 +43,13 @@ my @PLAYER_FILE_PATTERNS = (
     qr/^Score\.dat\.tmp$/,
 );
 
-my $root = File::Spec->rel2abs(dirname(__FILE__) . '/..');
+my $root = abs_path(dirname(__FILE__) . '/..') // die "cannot resolve repository root\n";
+chdir $root or die "cannot enter repository root: $!\n";
 my %opt = (
     out          => undef,
     rid          => undef,
     configuration => 'Release',
+    framework    => $ENV{THSSS_FRAMEWORK},
     'self-contained' => 0,
     'skip-build' => 0,
     clean        => 0,
@@ -53,21 +58,26 @@ GetOptions(
     'out=s'          => \$opt{out},
     'rid=s'          => \$opt{rid},
     'configuration=s' => \$opt{configuration},
+    'framework=s'    => \$opt{framework},
     'self-contained' => \$opt{'self-contained'},
     'skip-build'     => \$opt{'skip-build'},
     'clean'          => \$opt{clean},
 ) or usage(2);
 
+my $host_framework = default_framework();
+$opt{framework} //= $host_framework;
+die "unsupported framework: $opt{framework} (use net8.0 or net10.0)\n"
+    unless $opt{framework} =~ /^net(?:8|10)\.0$/;
+die "net10.0 requires the .NET 10 SDK or newer\n"
+    if $opt{framework} eq 'net10.0' && $host_framework eq 'net8.0';
 $opt{rid} ||= default_rid();
 
 my @rids = grep { length } split /,/, $opt{rid};
 usage(2, "--rid gave no runtimes") unless @rids;
 
-my $stamp = strftime('%Y%m%d', localtime);
+my $stamp = strftime('%Y%m%d-%H%M%S', localtime);
 my $out = $opt{out} // File::Spec->catdir($root, 'dist', "thsss-$stamp");
 $out = File::Spec->rel2abs($out);
-
-remove_tree($out) if $opt{clean};
 
 my @required = (
     [ File::Spec->catfile($root, 'src', 'THSSS.csproj'), 'game project' ],
@@ -79,20 +89,59 @@ for my $entry (@required) {
     die "missing $entry->[1]: $entry->[0]\n" unless -e $entry->[0];
 }
 
+for my $rid (@rids) {
+    die "unsupported runtime: $rid\n" unless $rid =~ /^(?:linux|win|osx)-(?:x64|arm64)$/;
+}
+check_assets();
+if (grep { /^osx-/ } @rids) {
+    for my $tool (qw(glslangValidator spirv-cross)) {
+        die "missing build tool: $tool (macOS: brew install glslang spirv-cross)\n" unless which($tool);
+    }
+}
+if ($opt{clean}) {
+    # --clean may only remove a resolved child of this repository's dist directory.
+    # Resolve links before checking, so a link cannot redirect removal into game/.
+    my $dist_path = File::Spec->catdir($root, 'dist');
+    die "--clean cannot use a linked dist directory\n" if -l $dist_path;
+    my $dist = abs_path($dist_path);
+    my $target = abs_path($out);
+    if (defined $target && -e $target) {
+        die "--clean is restricted to a subdirectory of $root/dist\n" unless defined $dist;
+        my $relative = File::Spec->abs2rel($target, $dist);
+        die "unsafe --clean target: $target\n"
+            if $relative eq '.' || File::Spec->file_name_is_absolute($relative) || $relative =~ m{^\.\.(?:[\\/]|$)};
+        check_clean($target);
+        remove_tree($target, { error => \my $errors });
+        die "cannot clean $target\n" if @$errors;
+    }
+}
+
 my $total = 0;
 for my $rid (@rids) {
     my $stage = @rids == 1 ? $out : File::Spec->catdir($out, $rid);
-    say "==> $rid -> $stage";
+    say "==> $rid / $opt{framework} -> $stage";
 
-    my @publish = $opt{'skip-build'} ? () : publish($rid, $stage);
-    die "publish reported an error for $rid\n" if $? && !$opt{'skip-build'};
+    die "output already exists: $stage; choose --out or use --clean for an old dist package\n"
+        if -e $stage && !$opt{'skip-build'};
+    check_clean($stage) if -d $stage;
+
+    publish($rid, $stage) unless $opt{'skip-build'};
 
     die "no published output in $stage (run without --skip-build first)\n"
         unless -f File::Spec->catfile($stage, "THSSS.dll") || -f File::Spec->catfile($stage, "THSSS") || -f File::Spec->catfile($stage, "THSSS.exe");
 
+    check_framework($stage);
     copy_assets($stage);
-    run('sh', File::Spec->catfile($root, 'tools', 'export-metal-shaders.sh'), $stage)
-        if $rid =~ /^osx-/;
+    if ($rid =~ /^osx-/) {
+        # The exporter runs for the build host, even when publishing another RID.
+        run('dotnet', 'run', '--project', File::Spec->catfile($root, 'tools', 'MetalShaderExporter', 'MetalShaderExporter.csproj'),
+            '--framework', $host_framework, '-c', 'Release', '--', File::Spec->catdir($stage, 'MetalShaders'));
+        for my $executable (qw(THSSS Config)) {
+            my $path = File::Spec->catfile($stage, $executable);
+            die "missing macOS executable: $path\n" unless -f $path;
+            chmod 0755, $path or die "cannot make executable: $path: $!\n";
+        }
+    }
     write_setting($stage);
     write_launchers($stage, $rid);
     write_readme($stage, $rid);
@@ -105,6 +154,10 @@ for my $rid (@rids) {
 
 check_clean($out);
 printf "Done: %s (%.1f MiB)\n", $out, $total / (1024 * 1024);
+if (@rids == 1 && $rids[0] =~ /^osx-/) {
+    run('tar', '-czf', "$out.tar.gz", '-C', dirname($out), basename($out));
+    say "Archive: $out.tar.gz";
+}
 exit 0;
 
 sub usage {
@@ -112,12 +165,13 @@ sub usage {
     print STDERR "$why\n" if defined $why;
     print STDERR <<"USAGE";
 usage: perl tools/make-dist.pl [options]
-  --out DIR              output directory (default: dist/thsss-YYYYMMDD)
+  --out DIR              output directory (default: dist/thsss-YYYYMMDD-HHMMSS)
   --rid LIST             comma separated runtimes (default: current platform)
   --configuration NAME   Release (default) or Debug
+  --framework TFM        net8.0 or net10.0 (default: selected SDK's version)
   --self-contained       bundle the .NET runtime with the game
   --skip-build           reuse existing bin output, do not run dotnet publish
-  --clean                delete the output directory first
+  --clean                delete an old output subdirectory under this repo's dist/
 USAGE
     exit $code;
 }
@@ -135,6 +189,30 @@ sub default_rid {
 sub is_arm   { return $ENV{HOSTTYPE} && $ENV{HOSTTYPE} =~ /aarch64|arm64/ }
 sub is_x86   { return $ENV{HOSTTYPE} && $ENV{HOSTTYPE} =~ /x86_64/ }
 
+sub default_framework {
+    die "dotnet not found in PATH\n" unless which('dotnet');
+    open my $sdk, '-|', 'dotnet', '--version' or die "cannot query .NET SDK: $!\n";
+    my $version = <$sdk> // '';
+    close $sdk or die "dotnet --version failed\n";
+    die "unsupported .NET SDK: $version" unless $version =~ /^(\d+)\./ && $1 >= 8;
+    return $1 >= 10 ? 'net10.0' : 'net8.0';
+}
+
+sub check_framework {
+    my ($stage) = @_;
+    # In particular, --skip-build must not label an existing net10.0 package as net8.0.
+    for my $name (qw(THSSS Config)) {
+        my $path = File::Spec->catfile($stage, "$name.runtimeconfig.json");
+        open my $fh, '<', $path or die "cannot read published runtime configuration $path: $!\n";
+        local $/;
+        my $config = decode_json(<$fh>);
+        close $fh or die "cannot close $path: $!\n";
+        my $framework = $config->{runtimeOptions}{tfm} // '';
+        die "$path targets '$framework', expected '$opt{framework}'; publish into a fresh output directory\n"
+            unless $framework eq $opt{framework};
+    }
+}
+
 sub publish {
     my ($rid, $stage) = @_;
     die "dotnet not found in PATH\n" unless which('dotnet');
@@ -142,6 +220,7 @@ sub publish {
         'dotnet', 'publish',
         File::Spec->catfile($root, 'src', 'Config', 'THSSS.Config.csproj'),
         '-c', $opt{configuration},
+        '--framework', $opt{framework},
         '-r', $rid,
         ($opt{'self-contained'} ? ('--self-contained', 'true') : ()),
         '-o', $stage,
@@ -153,6 +232,7 @@ sub publish {
         'dotnet', 'publish',
         File::Spec->catfile($root, 'src', 'THSSS.csproj'),
         '-c', $opt{configuration},
+        '--framework', $opt{framework},
         '-r', $rid,
         ($opt{'self-contained'} ? ('--self-contained', 'true') : ()),
         '-o', $stage,
@@ -170,10 +250,35 @@ sub run {
 sub which {
     my ($cmd) = @_;
     for my $dir (File::Spec->path()) {
-        my $candidate = File::Spec->catfile($dir, $cmd);
-        return $candidate if -x $candidate;
+        for my $name ($cmd, ($^O eq 'MSWin32' ? "$cmd.exe" : ())) {
+            my $candidate = File::Spec->catfile($dir, $name);
+            return $candidate if -x $candidate;
+        }
     }
     return undef;
+}
+
+sub check_assets {
+    my @pointers;
+    for my $dir (@ASSET_DIRS) {
+        my $source = File::Spec->catdir($root, 'game', $dir);
+        die "missing asset directory: $source\n" unless -d $source || $dir eq 'BPic';
+        next unless -d $source;
+        find({ no_chdir => 1, wanted => sub {
+            return unless -f $_ && -s _ <= 1024;
+            open my $fh, '<', $_ or die "cannot read $_: $!\n";
+            my $header = <$fh> // '';
+            close $fh;
+            push @pointers, File::Spec->abs2rel($_, $root)
+                if $header =~ /^version https:\/\/git-lfs\.github\.com\/spec\/v1\r?\n?$/;
+        }}, $source);
+    }
+    if (@pointers) {
+        my @examples = @pointers[0 .. ($#pointers < 4 ? $#pointers : 4)];
+        die scalar(@pointers) . " assets are Git LFS pointers, not game data:\n  "
+            . join("\n  ", @examples)
+            . "\nRun git lfs install and git lfs pull in the repository before packaging.\n";
+    }
 }
 
 sub copy_assets {
@@ -221,7 +326,7 @@ sub write_setting {
     my $src = File::Spec->catfile($root, 'game', 'Setting.INI');
     my $dest = File::Spec->catfile($stage, 'Setting.INI');
     copy_file($src, $dest);
-    say "    Setting.INI copied (defaults, no player options)";
+    say "    Setting.INI copied from game/ (current settings)";
 }
 
 sub write_launchers {
@@ -248,6 +353,12 @@ SH
 cd "\$(dirname "\$0")" || exit 1
 exec "./$config" "\$\@"
 SH
+        if ($rid =~ /^osx-/) {
+            for my $name (qw(game config)) {
+                write_file(File::Spec->catfile($stage, "run-$name.command"),
+                    "#!/bin/sh\ncd \"\$(dirname \"\$0\")\" || exit 1\nexec /bin/sh \"./run-$name.sh\" \"\$\@\"\n", 0755);
+            }
+        }
     }
     say "    launchers written for $rid";
 }
@@ -258,9 +369,10 @@ sub write_readme {
     my $how = $is_windows
         ? "Double-click Config.exe to change settings or run-game.bat to start directly."
         : "Run ./run-config.sh to change settings or ./run-game.sh to start directly.";
+    my ($runtime_version) = $opt{framework} =~ /^net(\d+\.\d+)$/;
     my $req = $opt{'self-contained'}
         ? 'This build bundles the .NET runtime.'
-        : 'Requires the .NET 8 runtime to be installed.';
+        : "Requires the .NET $runtime_version runtime to be installed.";
     my $platform_req = $rid =~ /^osx-/
         ? 'Uses native Metal and AudioToolbox on macOS. Cached MSL shaders and the built-in Metal compiler require no external tools at runtime.'
         : $is_windows
@@ -279,6 +391,7 @@ Settings live in Setting.INI next to this file. Saves (Score.dat), replays
 not part of this package.
 
 Built for: $rid
+Target framework: $opt{framework}
 TXT
 }
 
@@ -362,9 +475,11 @@ sub check_clean {
         wanted   => sub {
             my $path = $_;
             my $rel = File::Spec->abs2rel($path, $dir);
-            if ($rel =~ m{^(Score\.dat(\.bak)?|.*\.tmp)$}
-                || $rel =~ m{^(Replay|ScreenShot)/.+(\.rpy|\.png|\.jpg)$}
-                || $rel =~ m{(^|/)bin/|(^|/)obj/}) {
+            $rel =~ s{\\}{/}g;
+            if ($rel =~ m{(?:^|/)Score\.dat(?:\.bak|\.tmp)?$}
+                || $rel =~ m{\.tmp$}
+                || ($rel =~ m{(?:^|/)(Replay|ScreenShot)/.+} && basename($rel) ne '.gitkeep')
+                || $rel =~ m{(?:^|/)(bin|obj)(?:/|$)}) {
                 push @bad, $rel;
             }
         },

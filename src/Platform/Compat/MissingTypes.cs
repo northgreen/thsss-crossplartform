@@ -293,7 +293,7 @@ namespace SlimDX.Direct3D9
             finally
             {
                 if (ownedSprite != null) target.End();
-                else target.Transform = target.Transform;
+                else target.Flush();
             }
         }
 

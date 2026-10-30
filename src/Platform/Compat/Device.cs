@@ -101,9 +101,16 @@ public partial class Device : IDisposable
         return true;
     }
 
-    public Viewport Viewport { get; set; }
+    private Viewport _viewport;
+    public Viewport Viewport
+    {
+        get => _viewport;
+        set { FlushActiveSpriteBatch(); _viewport = value; }
+    }
 
     internal Effect ActiveEffect { get; set; }
+    internal Sprite ActiveSpriteBatch { get; set; }
+    internal void FlushActiveSpriteBatch() => ActiveSpriteBatch?.Flush();
     public Surface RenderTarget { get; private set; }
 
     public Surface GetRenderTarget(int index) => RenderTarget;
@@ -112,7 +119,7 @@ public partial class Device : IDisposable
     public Surface DepthStencilSurface
     {
         get => _depthStencilSurface;
-        set { _depthStencilSurface = value; AttachDepthSurface(); }
+        set { FlushActiveSpriteBatch(); _depthStencilSurface = value; AttachDepthSurface(); }
     }
 
     private void AttachDepthSurface()
@@ -180,6 +187,7 @@ public partial class Device : IDisposable
     };
     public void SetRenderState(RenderState state, int value)
     {
+        FlushActiveSpriteBatch();
         Pipeline3D.SetState(state, value);
         if (state is RenderState.FogStart or RenderState.FogEnd or RenderState.FogDensity)
             Pipeline3D.SetState(state, BitConverter.Int32BitsToSingle(value));
@@ -308,11 +316,12 @@ public partial class Device : IDisposable
 
     public void BeginScene() { }
 
-    public void EndScene() { }
+    public void EndScene() => FlushActiveSpriteBatch();
 
     /// <summary>GLFW presents the default framebuffer after the render callback.</summary>
     public void Present()
     {
+        FlushActiveSpriteBatch();
         if (PresentSourceProvider is { } provide)
             RenderBackend.SetPresentSource(provide());
         (RenderBackend as THSSS.Graphics.Vulkan.VulkanRenderBackend)?.NotePresentState();
@@ -358,6 +367,7 @@ public partial class Device : IDisposable
     }
     public void DrawPrimitives(PrimitiveType type, int startVertex, int primitiveCount)
     {
+        FlushActiveSpriteBatch();
         ApplyBlendState();
         Pipeline3D.Draw(type, startVertex, primitiveCount);
     }
@@ -434,6 +444,7 @@ public partial class Device : IDisposable
 
     public void SetRenderTarget(int index, Surface surface)
     {
+        FlushActiveSpriteBatch();
         RenderTarget = surface;
         RenderBackend.BindFramebuffer(surface?.Framebuffer);
         Viewport = new Viewport(0, 0, surface?.Width ?? GameWidth, surface?.Height ?? GameHeight, 0, 1);
@@ -444,6 +455,7 @@ public partial class Device : IDisposable
 
     public void Clear(ClearFlags flags, System.Drawing.Color color, float z, int stencil)
     {
+        FlushActiveSpriteBatch();
         if (GL == null)
         {
             RenderBackend.Clear(BackendClearMask(flags), color.R / 255f, color.G / 255f, color.B / 255f, color.A / 255f, z, stencil);
@@ -466,6 +478,7 @@ public partial class Device : IDisposable
 
     public void Clear(ClearFlags flags, Color4 color, float z, int stencil)
     {
+        FlushActiveSpriteBatch();
         if (GL == null)
         {
             RenderBackend.Clear(BackendClearMask(flags), color.Red, color.Green, color.Blue, color.Alpha, z, stencil);

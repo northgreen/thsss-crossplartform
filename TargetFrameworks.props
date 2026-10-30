@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Imported after Sdk.props, when NETCoreSdkVersion is available. -->
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::VersionGreaterThanOrEquals('$(NETCoreSdkVersion)', '10.0.100'))">net8.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+</Project>

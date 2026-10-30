@@ -26,6 +26,53 @@ void Check(bool condition, string description)
     assertions++;
     if (!condition) throw new Exception(description);
 }
+
+// Reproduce deferred loading: a face can have readable name metadata but lack
+// a required outline table. Use an installed TTF only as a temporary fixture.
+byte[] missingLocaFont = null;
+foreach (var family in SixLabors.Fonts.SystemFonts.Families)
+{
+    var probe = family.CreateFont(12);
+    if (!probe.TryGetPath(out string sourcePath) || !sourcePath.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)) continue;
+    byte[] bytes = File.ReadAllBytes(sourcePath);
+    if (bytes.Length < 12 || System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes) != 0x00010000) continue;
+    int tables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(4));
+    for (int table = 0; table < tables; table++)
+    {
+        int offset = 12 + table * 16;
+        if (System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(offset)) != 0x6c6f6361) continue;
+        bytes[offset] = (byte)'x';
+        missingLocaFont = bytes;
+        break;
+    }
+    if (missingLocaFont != null) break;
+}
+Check(missingLocaFont != null, "Font regression fixture requires an installed TrueType face with a loca table");
+string brokenFontPath = Path.Combine(Path.GetTempPath(), "thsss-font-" + Guid.NewGuid().ToString("N") + ".ttf");
+var originalError = Console.Error;
+try
+{
+    File.WriteAllBytes(brokenFontPath, missingLocaFont);
+    var collection = new SixLabors.Fonts.FontCollection();
+    var brokenFamily = collection.Add(brokenFontPath);
+    var validate = typeof(System.Drawing.Graphics).GetMethod("TryCreateReadableFont", BindingFlags.Static | BindingFlags.NonPublic)!;
+    object[] parameters = { brokenFamily, 12f, SixLabors.Fonts.FontStyle.Regular, null };
+    using var diagnostics = new StringWriter();
+    Console.SetError(diagnostics);
+    Check(!(bool)validate.Invoke(null, parameters)! && parameters[3] == null,
+        "A name-only face with missing loca is rejected before text layout");
+    string firstDiagnostic = diagnostics.ToString();
+    Check(firstDiagnostic.Contains(brokenFontPath) && firstDiagnostic.Contains("MissingFontTableException") && firstDiagnostic.Contains("loca"),
+        "Rejected font retains path and complete parser error");
+    Check(!(bool)validate.Invoke(null, parameters)! && diagnostics.ToString() == firstDiagnostic,
+        "Rejected face is cached without repeated parsing or repeated errors");
+}
+finally
+{
+    Console.SetError(originalError);
+    if (File.Exists(brokenFontPath)) File.Delete(brokenFontPath);
+}
+
 var options = WindowOptions.Default;
 options.Size = new Silk.NET.Maths.Vector2D<int>(256, 192);
 options.IsVisible = false;

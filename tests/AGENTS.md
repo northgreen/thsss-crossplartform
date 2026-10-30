@@ -12,6 +12,8 @@ tests/
 
 项目引用为 `../../../src/THSSS.csproj`。DejaGnu 每个 toolkit 必须有独立源目录，因为 `runtest --srcdir` 会执行其中所有 `.exp`；共用目录会让一个 runner 跑到别的 toolkit 用例。
 
+框架共用根 `TargetFrameworks.props`：SDK 8 只启用 net8.0，SDK 10 启用 net8.0/net10.0。runner 根据 SDK 选择默认运行框架，可用 `THSSS_FRAMEWORK=net8.0` 或 `net10.0` 指定；本地需要对应运行时。不要在脚本或 DejaGnu 驱动中硬编码 bin 下的框架目录。
+
 | Toolkit | Runner | 用例 |
 |---|---|---|
 | `shader` | `tools/run-shader-regressions.sh` | 9 套渲染 |

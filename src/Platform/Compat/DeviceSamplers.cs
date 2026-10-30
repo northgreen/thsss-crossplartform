@@ -9,9 +9,37 @@ public partial class Device
     private readonly Dictionary<(int, SamplerState), int> _samplerStates = new();
     private uint _sampler0;
 
+    internal void CaptureSamplerStates(Dictionary<(int, SamplerState), int> states)
+    {
+        states.Clear();
+        foreach (var state in _samplerStates) states.Add(state.Key, state.Value);
+    }
+
+    internal void RestoreSamplerStates(Dictionary<(int, SamplerState), int> states)
+    {
+        _samplerStates.Clear();
+        foreach (var state in states) _samplerStates.Add(state.Key, state.Value);
+        ApplySamplerState();
+    }
+
+    internal void SetSpriteSamplerDefaults()
+    {
+        // D3DXSprite.Begin establishes its own sampler instead of inheriting the
+        // D3D device's point-filter defaults from the preceding 3D draw.
+        StoreSamplerState(0, SamplerState.AddressU, (int)TextureAddress.Clamp);
+        StoreSamplerState(0, SamplerState.AddressV, (int)TextureAddress.Clamp);
+        StoreSamplerState(0, SamplerState.MinFilter, (int)TextureFilter.Linear);
+        StoreSamplerState(0, SamplerState.MagFilter, (int)TextureFilter.Linear);
+        StoreSamplerState(0, SamplerState.MipFilter, (int)TextureFilter.Linear);
+        StoreSamplerState(0, SamplerState.MaxMipLevel, 0);
+        StoreSamplerState(0, SamplerState.MaxAnisotropy, 1);
+        StoreSamplerState(0, SamplerState.MipMapLodBias, 0);
+    }
+
     private void StoreSamplerState(int sampler, SamplerState state, int value)
     {
         if (sampler < 0 || sampler > 15) throw new ArgumentOutOfRangeException(nameof(sampler));
+        FlushActiveSpriteBatch();
         _samplerStates[(sampler,state)] = value;
     }
     internal void ApplySamplerState()

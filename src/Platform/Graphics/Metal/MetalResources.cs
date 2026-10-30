@@ -40,6 +40,7 @@ internal sealed unsafe class MetalTexture:MetalResource,IRenderTexture
     {
         EnsureAlive();int channels=Format==TextureFormat.Rgb8?3:4;
         if(rowPitch<Width*channels||pixels.Length<checked((Height-1)*rowPitch+Width*channels))throw new ArgumentException("Metal texture upload has insufficient rows or row pitch.");
+        Owner.BeforeTextureUpload(this);
         if(channels==4){fixed(byte*p=pixels)MetalNative.Upload(Native,Width,Height,p,rowPitch);return;}
         byte[] rgba=new byte[checked(Width*Height*4)];
         for(int y=0;y<Height;y++)for(int x=0;x<Width;x++){int s=y*rowPitch+x*3,d=(y*Width+x)*4;rgba[d]=pixels[s];rgba[d+1]=pixels[s+1];rgba[d+2]=pixels[s+2];rgba[d+3]=255;}

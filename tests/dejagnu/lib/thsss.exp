@@ -80,7 +80,7 @@ proc thsss_root {} {
 # are passed to the fixture, not to dotnet.
 proc thsss_dotnet_run {name args} {
     set project [file join [thsss_root] tests testcase $name $name.csproj]
-    set command [list dotnet run --project $project -p:WarningLevel=0 -p:GenerateResourceWarnOnBinaryFormatterUse=false]
+    set command [list dotnet run --project $project --framework $::env(THSSS_FRAMEWORK) -p:WarningLevel=0 -p:GenerateResourceWarnOnBinaryFormatterUse=false]
     if {[llength $args] > 0} { lappend command -- {*}$args }
     return $command
 }

@@ -182,7 +182,8 @@ internal class BaseStory_SSS : BaseStory
 			return;
 		}
 		char[] separator = new char[1] { ',' };
-		string[] array = File.ReadAllLines(fileName, Encoding.Default);
+		// Original dialogue CSVs are CP936; .NET's Encoding.Default is UTF-8.
+		string[] array = File.ReadAllLines(fileName, Encoding.GetEncoding(936));
 		Conv.Clear();
 		int num = 0;
 		string[] array2 = array;

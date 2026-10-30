@@ -8,6 +8,6 @@
 
 ## 配置程序 `Config/`
 
-`src/Config/THSSS.Config.csproj` 是原版 `Config.exe` 的跨平台替代（Avalonia 11，net8.0，输出名 `Config`）。仅改动 `game/Setting.INI` 中原对话框拥有的键：`[Key]` 七项、`[DirectX]` 的 VerticalSync/FullWindow、`[Mode]` 的 PresentInterval、`[DirectInput]` 的 UseDirectInput、`[JoyStick]` 五项、`[Game]` 的 FontType。不要在这里加入音量、Clear、渲染器开关等原对话框不写的键。
+`src/Config/THSSS.Config.csproj` 是原版 `Config.exe` 的跨平台替代（Avalonia 11，net8.0 / net10.0，输出名 `Config`）。项目共用根 `TargetFrameworks.props`，SDK 8 仅启用 net8.0，SDK 10 启用双目标。仅改动 `game/Setting.INI` 中原对话框拥有的键：`[Key]` 七项、`[DirectX]` 的 VerticalSync/FullWindow、`[Mode]` 的 PresentInterval、`[DirectInput]` 的 UseDirectInput、`[JoyStick]` 五项、`[Game]` 的 FontType。不要在这里加入音量、Clear、渲染器开关等原对话框不写的键。
 
 `IniFile` 按 UTF-8 尝试、失败回退 GBK，保存时沿用读入编码并原子替换；`KeyNameMapper` 只输出游戏 `LegacyKeyMap` 能解析的键名。`ConfigWorkspace` 通过 `THSSS_DATA_ROOT` 或可执行文件同目录定位数据。回归：`tests/testcase/ConfigCompatibility`（已纳入 `tools/run-behavior-regressions.sh`）。

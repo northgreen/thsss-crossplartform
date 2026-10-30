@@ -2,79 +2,131 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using THSSS.Audio;
 
-// CoreAudio backend contract, verified without Apple hardware. The production backend imports
-// symbols from "AudioToolbox"; here we load a small C software shim (audioqueue_shim.c) built by
-// the test runner and register a DllImportResolver that redirects those imports to it. This
-// exercises the real managed backend code path (struct ABI, queue state machine, callback
-// ordering) against a software driver. It is NOT Apple's AudioToolbox and NOT a runtime test on a
-// Mac: a pass here proves layout and logic, not that macOS plays sound.
-if(args.Length!=1)throw new ArgumentException("Pass AudioQueue software-driver library.");
-nint library=NativeLibrary.Load(Path.GetFullPath(args[0]));
-NativeLibrary.SetDllImportResolver(typeof(CoreAudioBackend).Assembly,(name,_,_)=>name.EndsWith("AudioToolbox")?library:0);
+if (args.Length != 1) throw new ArgumentException("Pass AudioQueue software-driver library.");
+nint library = NativeLibrary.Load(Path.GetFullPath(args[0]));
+NativeLibrary.SetDllImportResolver(typeof(CoreAudioBackend).Assembly, (name, _, _) => name.EndsWith("AudioToolbox") ? library : 0);
+var prefetch = Marshal.GetDelegateForFunctionPointer<QueueAction>(NativeLibrary.GetExport(library, "shim_prefetch"));
+var advance = Marshal.GetDelegateForFunctionPointer<Advance>(NativeLibrary.GetExport(library, "shim_advance"));
+var metric = Marshal.GetDelegateForFunctionPointer<Metric>(NativeLibrary.GetExport(library, "shim_metric"));
+var sample = Marshal.GetDelegateForFunctionPointer<Sample>(NativeLibrary.GetExport(library, "shim_sample"));
+var failEnqueue = Marshal.GetDelegateForFunctionPointer<QueueFailure>(NativeLibrary.GetExport(library, "shim_fail_next_enqueue"));
+int checks = 0;
+void Check(bool condition, string label) { if (!condition) throw new Exception(label); checks++; }
+void Near(float actual, float expected, string label) => Check(Math.Abs(actual - expected) < 0.000001f, label);
+nint Queue(CoreAudioBackend backend) => (nint)typeof(CoreAudioBackend).GetField("_queue", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(backend)!;
+void Render(nint queue, int count) { for (int i = 0; i < count; i++) prefetch(queue); }
+Check(Marshal.SizeOf<CoreAudioBackend.StreamDescription>() == 40, "ASBD ABI");
+Check(Marshal.SizeOf<CoreAudioBackend.TimeStamp>() == 64, "timestamp ABI");
+Check(Marshal.OffsetOf<CoreAudioBackend.QueueBuffer>("AudioData").ToInt32() == 8, "buffer pointer ABI");
 
-// Shim entry points that stand in for AudioQueue callbacks. They are Cdecl because the C shim
-// invokes them through the C calling convention; a StdCall mismatch would corrupt the stack on
-// x86 and silently misbehave nowhere else.
-var complete=Marshal.GetDelegateForFunctionPointer<Complete>(NativeLibrary.GetExport(library,"shim_complete"));
-var prefetch=Marshal.GetDelegateForFunctionPointer<Complete>(NativeLibrary.GetExport(library,"shim_prefetch"));
-var advance=Marshal.GetDelegateForFunctionPointer<Advance>(NativeLibrary.GetExport(library,"shim_advance"));
-int checks=0;
-void Check(bool condition,string label){if(!condition)throw new Exception(label);checks++;}
+// Audible progress comes from output time, independently of buffer acquisition.
+using (var backend = new CoreAudioBackend())
+{
+    using var source = backend.CreateSource(22050);
+    nint queue = Queue(backend);
+    source.Submit(new float[400], 22050);
+    source.Submit(new float[600], 22050);
+    source.SetGain(.5f);
+    source.Play();
+    Render(queue, 2);
+    Check(source.SampleOffset == 0 && source.ProcessedBuffers == 0, "prefetch is not audible completion");
+    int clock = CoreAudioBackend.BufferCount * CoreAudioBackend.BufferFrames + 140;
+    advance(queue, clock);
+    Check(source.SampleOffset == 70, "resampled partial cursor");
+    source.Pause();
+    advance(queue, 40); clock += 40;
+    Check(source.SampleOffset == 70, "paused cursor frozen while shared device advances");
+    source.Play();
+    int resumeStart = (CoreAudioBackend.BufferCount + 2) * CoreAudioBackend.BufferFrames;
+    Render(queue, 2);
+    advance(queue, resumeStart + 400 - clock); clock = resumeStart + 400;
+    Check(source.ProcessedBuffers == 1 && source.SampleOffset == 270, "resume and retained completed chunk");
+    source.UnqueueProcessed();
+    Check(source.SampleOffset == 70, "retirement subtracts once");
+    Render(queue, 2);
+    advance(queue, resumeStart + 860 - clock); clock = resumeStart + 860;
+    Check(source.ProcessedBuffers == 1, "second chunk completion");
+    source.UnqueueProcessed();
+    Check(source.SampleOffset == 0 && !source.IsPlaying, "queue drained");
 
-// ABI checks. These structs are passed by pointer to the C API, so their sizes and field offsets
-// are part of the interop contract with the Apple headers: AudioStreamBasicDescription is 40
-// bytes, AudioTimeStamp is 64, and QueueBuffer's AudioData pointer must sit at offset 8 (after the
-// 4-byte byte-capacity field plus 64-bit alignment). Adding, reordering or "tidying" a field
-// keeps C# compiling and makes the framework read garbage at runtime, so it is asserted here.
-Check(Marshal.SizeOf<CoreAudioBackend.StreamDescription>()==40,"ASBD ABI");
-Check(Marshal.SizeOf<CoreAudioBackend.TimeStamp>()==64,"timestamp ABI");
-Check(Marshal.OffsetOf<CoreAudioBackend.QueueBuffer>("AudioData").ToInt32()==8,"buffer pointer ABI");
+    source.Clear();
+    Check(source.ProcessedBuffers == 0 && source.SampleOffset == 0, "logical clear resets cursor");
+    source.Submit(new float[100], 22050);
+    source.Play();
+    int replayStart = (CoreAudioBackend.BufferCount + 6) * CoreAudioBackend.BufferFrames;
+    Render(queue, 1);
+    advance(queue, replayStart + 100 - clock);
+    Check(source.SampleOffset == 50 && source.ProcessedBuffers == 1, "new playback after clear");
+    for (int i = 0; i < 20; i++)
+    {
+        source.Pause(); source.Clear();
+        source.Submit(new float[100], 22050); source.Play();
+    }
+    Check(metric(0) == 1 && metric(1) == 1 && metric(5) == CoreAudioBackend.BufferCount,
+        "repeated sound restarts reuse one native queue, one native start and fixed buffers");
+    Check(metric(2) == 0 && metric(3) == 0 && metric(4) == 0, "voice operations never pause, stop or reset native output");
+    source.Dispose(); source.Dispose();
+    try { source.Play(); throw new Exception("disposed source accepted"); }
+    catch (ObjectDisposedException) { checks++; }
+    backend.Dispose(); backend.Dispose();
+    Check(metric(6) == 0, "shared queue disposed once");
+}
 
-// Set up one source with two chunks (400 and 600 frames) at half gain, mirroring a BGM voice
-// with a queued second chunk.
-using var backend=new CoreAudioBackend();using var source=backend.CreateSource(22050);
-nint queue=(nint)source.GetType().GetField("_queue",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(source)!;
-source.Submit(new float[400],22050);source.Submit(new float[600],22050);source.SetGain(.5f);source.Play();
+// Check actual submitted PCM: snapshot ownership, summation, gain and interpolation.
+using (var backend = new CoreAudioBackend())
+{
+    using var fullRate = backend.CreateSource(44100);
+    using var halfRate = backend.CreateSource(22050);
+    using var otherRate = backend.CreateSource(48000);
+    float[] constant = new float[512 * 2], ramp = new float[256 * 2];
+    for (int i = 0; i < 512; i++) { constant[i * 2] = .25f; constant[i * 2 + 1] = -.5f; }
+    for (int i = 0; i < 256; i++) { ramp[i * 2] = i / 1024f; ramp[i * 2 + 1] = -i / 2048f; }
+    fullRate.Submit(constant, 44100); fullRate.SetGain(.5f); fullRate.Play();
+    halfRate.Submit(ramp, 22050); halfRate.Play();
+    otherRate.Submit(new float[480 * 2], 48000); otherRate.Play();
+    Array.Clear(constant);
+    nint queue = Queue(backend);
+    Render(queue, CoreAudioBackend.BufferCount + 1);
+    Near(sample(0, 0), .125f, "submitted PCM is copied before caller reuse");
+    Near(sample(0, 1), -.25f, "per-voice stereo gain");
+    Near(sample(1, 0), .125f + 1f / 2048f, "half-rate linear interpolation");
+    Near(sample(255, 1), -.25f - 127.5f / 2048f, "independent channels mixed");
+    advance(queue, CoreAudioBackend.BufferCount * CoreAudioBackend.BufferFrames + 512);
+    Check(fullRate.ProcessedBuffers == 1 && fullRate.SampleOffset == 512, "full-rate exact completion");
+    Check(halfRate.ProcessedBuffers == 1 && halfRate.SampleOffset == 256, "half-rate exact completion");
+    Check(otherRate.ProcessedBuffers == 1 && otherRate.SampleOffset == 480, "48000Hz exact completion on 44100Hz output");
+}
 
-// A prefetch callback means "give me the next buffer", not "this audio was heard". Counting it as
-// completion would advance the logical timeline ahead of real playback and desynchronise the game.
-prefetch(queue);Check(source.SampleOffset==0&&source.ProcessedBuffers==0,"prefetch callback is not audible completion");
+using (var backend = new CoreAudioBackend())
+{
+    using var first = backend.CreateSource(44100);
+    using var second = backend.CreateSource(44100);
+    first.Submit(Enumerable.Repeat(.2f, 4096).ToArray(), 44100);
+    second.Submit(Enumerable.Repeat(.3f, 4096).ToArray(), 44100);
+    first.Play(); second.Play();
+    nint queue = Queue(backend);
+    Render(queue, CoreAudioBackend.BufferCount + 1);
+    Near(sample(0, 0), .5f, "concurrent voices summed");
+    first.Clear();
+    Render(queue, CoreAudioBackend.BufferCount + 1);
+    Near(sample(0, 0), .3f, "clearing one voice leaves the other voice playing");
+    Check(metric(2) == 0 && metric(3) == 0 && metric(4) == 0, "clearing one voice does not reset shared output");
+}
 
-// Partial advance: the device consumed 70 frames of the first 400-frame chunk, so the offset is 70
-// and nothing has completed yet.
-advance(queue,70);Check(source.SampleOffset==70,"partial cursor");
+// The native callback cannot throw across P/Invoke, but the failure must stay visible.
+using (var backend = new CoreAudioBackend())
+{
+    using var source = backend.CreateSource(44100);
+    failEnqueue();
+    prefetch(Queue(backend));
+    try { source.Play(); throw new Exception("callback failure hidden"); }
+    catch (InvalidOperationException error) { Check(error.Message.Contains("OSStatus=-9"), "callback failure rethrown"); }
+}
+Check(metric(6) == 0, "all native queues released");
+Console.WriteLine($"PASS CoreAudioCompatibility: {checks} native ABI/mixer software-driver checks; not Apple runtime");
 
-// Pause must freeze the offset even though the shim keeps advancing its clock; otherwise a paused
-// BGM would keep "playing" in the logical timeline.
-source.Pause();advance(queue,20);Check(source.SampleOffset==70,"paused cursor frozen");
-// Completion of the first chunk: one processed buffer, and its full 200 frames are retained in
-// the offset until explicitly unqueued (200+70=270) — the XAudio2 2.9 behaviour the shared layer
-// relies on. UnqueueProcessed then subtracts that chunk exactly once (270-200=70).
-source.Play();complete(queue);Check(source.ProcessedBuffers==1,"timeline completion");
-Check(source.SampleOffset==270,"retained completed chunk counted");
-source.UnqueueProcessed();Check(source.SampleOffset==70,"retirement subtracts once");
-
-// Second completion retires the remaining chunk; after unqueueing, the queue is drained: offset 0,
-// not playing. A stale "playing" flag here is how BGM loops re-trigger by themselves.
-complete(queue);Check(source.ProcessedBuffers==1,"second completion");source.UnqueueProcessed();
-Check(source.SampleOffset==0&&!source.IsPlaying,"queue drained");
-
-// Clear is the stop/reset path: it must empty the queue and reset the cursor and playing flag.
-source.Submit(new float[100],22050);source.Play();source.Clear();
-Check(source.ProcessedBuffers==0&&source.SampleOffset==0&&!source.IsPlaying,"reset empties queue");
-
-// A fresh playback after a reset starts a new timeline: completion of the 100-frame chunk reports
-// 50 frames of offset, not a continuation of the previous count.
-source.Submit(new float[100],22050);source.Play();complete(queue);Check(source.SampleOffset==50,"new playback after reset");
-
-// Dispose twice (scene teardown sometimes hits both finally blocks); afterward every call must be
-// ObjectDisposedException rather than a use-after-free on the native queue handle.
-source.Dispose();source.Dispose();
-try{source.Play();throw new Exception("disposed source accepted");}catch(ObjectDisposedException){checks++;}
-backend.Dispose();backend.Dispose();
-
-// The trailing note is part of the report: software-driver verification must never be read as
-// Apple runtime or speaker validation.
-Console.WriteLine($"PASS CoreAudioCompatibility: {checks} native ABI/queue software-driver checks; not Apple runtime");
-[UnmanagedFunctionPointer(CallingConvention.Cdecl)]delegate void Complete(nint queue);
-[UnmanagedFunctionPointer(CallingConvention.Cdecl)]delegate void Advance(nint queue,int frames);
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void QueueAction(nint queue);
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void Advance(nint queue, int frames);
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int Metric(int index);
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate float Sample(int frame, int channel);
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void QueueFailure();
