@@ -1,0 +1,174 @@
+name: Package
+
+# Builds a distributable package for every supported runtime. Packaging is what
+# users actually receive, so this job is the release gate: it verifies the archive
+# contents rather than only that the project compiles.
+#
+# Wine/Proton users need the managed DES fallback (Wine's bcrypt has no DES
+# provider); native Windows does not. The Windows archives are therefore built
+# twice and labelled, never silently mixed.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      framework:
+        description: Target framework
+        type: choice
+        options: [net8.0, net10.0]
+        default: net8.0
+      self_contained:
+        description: Bundle the .NET runtime
+        type: boolean
+        default: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  THSSS_FRAMEWORK: ${{ inputs.framework || 'net8.0' }}
+
+jobs:
+  package:
+    name: Package ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: linux-x64,   os: ubuntu-24.04 }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm }
+          - { rid: win-x64,     os: windows-2022 }
+          - { rid: win-arm64,   os: windows-2022 }
+          - { rid: osx-x64,     os: macos-15-intel }
+          - { rid: osx-arm64,   os: macos-15 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Metal shaders are translated once on Linux and shipped inside every macOS
+      # package, so end users never need glslangValidator or SPIRV-Cross.
+      - name: Install shader toolchain (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install glslang spirv-cross
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends glslang-tools build-essential cmake ninja-build git
+            git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Cross.git "$RUNNER_TEMP/spirv-cross"
+            cmake -S "$RUNNER_TEMP/spirv-cross" -B "$RUNNER_TEMP/spirv-cross/build" \
+              -G Ninja -DSPIRV_CROSS_CLI=ON -DCMAKE_BUILD_TYPE=Release
+            cmake --build "$RUNNER_TEMP/spirv-cross/build" --target spirv-cross
+            echo "$RUNNER_TEMP/spirv-cross/build" >> "$GITHUB_PATH"
+          fi
+      - name: Install Perl (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # make-dist.pl is the single packager; Windows needs a Perl to run it.
+          C:\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed perl"
+          "C:\msys64\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Package (framework-dependent)
+        shell: bash
+        run: |
+          perl tools/make-dist.pl --rid "${{ matrix.rid }}" --out "dist/${{ matrix.rid }}"
+          ls -1 "dist/${{ matrix.rid }}"
+
+      - name: Verify archive contents
+        shell: bash
+        run: |
+          set -eu
+          pack="dist/${{ matrix.rid }}"
+          # Player data must never be in a package: it would overwrite a user's saves.
+          ! test -e "$pack/Score.dat"
+          ! test -e "$pack/Score.dat.bak"
+          # Replay/ and ScreenShot/ are empty runtime placeholders (space-holding dirs),
+          # so assert no actual replay or screenshot files were shipped.
+          ! find "$pack/Replay" -name '*.rpy' 2>/dev/null | grep -q .
+          ! find "$pack/ScreenShot" -type f ! -name '.gitkeep' 2>/dev/null | grep -q .
+          # Both executables ship together; Config looks for the game beside itself.
+          test -e "$pack/THSSS.runtimeconfig.json"
+          test -e "$pack/Config.runtimeconfig.json"
+          # Read-only asset roots the game opens at runtime.
+          for asset in Image Model FX Sound Story BGM CS BPic; do
+            test -d "$pack/$asset" || { echo "missing asset directory: $asset"; exit 1; }
+          done
+
+      - name: Verify packaged MSL cache (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -eu
+          count=$(ls -1 "dist/${{ matrix.rid }}/MetalShaders"/*.msl 2>/dev/null | wc -l)
+          echo "packaged MSL files: $count"
+          test "$count" -ge 8
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thsss-${{ matrix.rid }}
+          path: dist/${{ matrix.rid }}
+          if-no-files-found: error
+
+  wine:
+    name: Package win-x64 with Wine compatibility
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install Perl
+        shell: pwsh
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed perl"
+          "C:\msys64\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Package with managed DES fallback
+        shell: bash
+        run: |
+          # Wine's bcrypt ships no DES provider, so a save cannot be encrypted there
+          # without the managed implementation. Native Windows keeps using CNG.
+          perl tools/make-dist.pl --rid win-x64 --wine-compat --out dist/win-x64-wine
+          # Prove the flag reached publish: the fallback type only exists in that build.
+          if ! grep -rqa "ManagedDes" dist/win-x64-wine/THSSS.dll; then
+            echo "managed DES fallback missing from the Wine package"; exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thsss-win-x64-wine
+          path: dist/win-x64-wine
+          if-no-files-found: error
+
+  release:
+    name: Attach archives to the release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: thsss-*
+          path: artifacts
+      - name: Archive each runtime
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p uploads
+          for dir in artifacts/thsss-*; do
+            name=$(basename "$dir")
+            ( cd artifacts && tar -czf "../uploads/$name.tar.gz" "$name" )
+          done
+          ls -lh uploads
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: uploads/*.tar.gz
+          fail_on_unmatched_files: true

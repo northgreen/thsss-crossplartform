@@ -53,6 +53,7 @@ my %opt = (
     'self-contained' => 0,
     'skip-build' => 0,
     clean        => 0,
+    'wine-compat' => 0,
 );
 GetOptions(
     'out=s'          => \$opt{out},
@@ -62,6 +63,7 @@ GetOptions(
     'self-contained' => \$opt{'self-contained'},
     'skip-build'     => \$opt{'skip-build'},
     'clean'          => \$opt{clean},
+    'wine-compat'    => \$opt{'wine-compat'},
 ) or usage(2);
 
 my $host_framework = default_framework();
@@ -172,6 +174,7 @@ usage: perl tools/make-dist.pl [options]
   --self-contained       bundle the .NET runtime with the game
   --skip-build           reuse existing bin output, do not run dotnet publish
   --clean                delete an old output subdirectory under this repo's dist/
+  --wine-compat          build the game with the managed DES fallback (Wine/Proton)
 USAGE
     exit $code;
 }
@@ -238,6 +241,9 @@ sub publish {
         '-o', $stage,
         '-p:WarningLevel=0',
         '-p:GenerateResourceWarnOnBinaryFormatterUse=false',
+        # Wine's bcrypt has no DES provider, so a save cannot be encrypted there
+        # without the managed implementation. Native Windows keeps using CNG.
+        ($opt{'wine-compat'} ? ('-p:THSSSManagedDesFallback=true') : ()),
     );
     return ();
 }
