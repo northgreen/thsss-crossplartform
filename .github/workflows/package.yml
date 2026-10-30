@@ -48,24 +48,39 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       # Metal shaders are translated once on Linux and shipped inside every macOS
       # package, so end users never need glslangValidator or SPIRV-Cross.
-      - name: Install shader toolchain (Linux/macOS)
+      - name: Install native and shader toolchains (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
-            brew install glslang spirv-cross
+            brew install glslang spirv-cross llvm lld
+            echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+            echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
           else
             sudo apt-get update
-            sudo apt-get install -y --no-install-recommends glslang-tools build-essential cmake ninja-build git
+            sudo apt-get install -y --no-install-recommends glslang-tools build-essential cmake ninja-build git clang lld
             git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Cross.git "$RUNNER_TEMP/spirv-cross"
             cmake -S "$RUNNER_TEMP/spirv-cross" -B "$RUNNER_TEMP/spirv-cross/build" \
               -G Ninja -DSPIRV_CROSS_CLI=ON -DCMAKE_BUILD_TYPE=Release
             cmake --build "$RUNNER_TEMP/spirv-cross/build" --target spirv-cross
             echo "$RUNNER_TEMP/spirv-cross/build" >> "$GITHUB_PATH"
           fi
+      - name: Enable LLVM toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $llvm = 'C:\Program Files\LLVM\bin'
+          if (!(Test-Path "$llvm\clang++.exe") -or !(Test-Path "$llvm\lld-link.exe")) {
+            choco install llvm --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'LLVM installation failed' }
+          }
+          $llvm | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Install Perl (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,6 +110,14 @@ jobs:
           # Both executables ship together; Config looks for the game beside itself.
           test -e "$pack/THSSS.runtimeconfig.json"
           test -e "$pack/Config.runtimeconfig.json"
+          case '${{ matrix.rid }}' in
+            win-*) test -s "$pack/thsss_legacy_math.dll" ;;
+            osx-*) test -s "$pack/libthsss_legacy_math.dylib" ;;
+            linux-*) test -s "$pack/libthsss_legacy_math.so" ;;
+          esac
+          test -s "$pack/licenses/LegacyMath/source/NOTICE.md"
+          test -s "$pack/licenses/LegacyMath/source/build.py"
+          test -s "$pack/licenses/LegacyMath/source/software_x87.cpp"
           # Read-only asset roots the game opens at runtime.
           for asset in Image Model FX Sound Story BGM CS BPic; do
             test -d "$pack/$asset" || { echo "missing asset directory: $asset"; exit 1; }
@@ -125,6 +148,18 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Enable LLVM toolchain
+        shell: pwsh
+        run: |
+          $llvm = 'C:\Program Files\LLVM\bin'
+          if (!(Test-Path "$llvm\clang++.exe") -or !(Test-Path "$llvm\lld-link.exe")) {
+            choco install llvm --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'LLVM installation failed' }
+          }
+          $llvm | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Install Perl
         shell: pwsh
         run: |

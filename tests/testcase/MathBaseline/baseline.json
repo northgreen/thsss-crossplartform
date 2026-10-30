@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "year": 2026,
+  "authority": "actual Windows CLR2 x86 runtime captures; not modern reimplementations",
+  "windows": {
+    "os": "10.0.26200.8655",
+    "clr": "2.0.50727.9179",
+    "pointer_bytes": 4,
+    "slimdx_version": "2.0.13.43",
+    "direct3d_adapter": "Microsoft Basic Render Driver",
+    "direct3d_flags": "HardwareVertexProcessing (without FpuPreserve)"
+  },
+  "fpu_control": {
+    "before_d3d": "0x0009001F",
+    "after_d3d": "0x000A001F",
+    "new_managed_thread_after_d3d": "0x0009001F"
+  },
+  "reference": {
+    "THSSS.exe": {
+      "sha256": "8b2b3bf4a3df620101a2edf32a406a49f71cb985f78e3b0ceff1819826bb0d9e",
+      "mvid": "1974659d-528f-42fe-8ba7-43fc949ab4ac"
+    },
+    "SlimDX.dll": {
+      "sha256": "41be5dc48845f4f962abf4904f546eb905d4276baac1492e61ea5b2b17ad64bb"
+    }
+  },
+  "modern_comparison": {
+    "runtime": ".NET 8.0.32",
+    "platform": "Linux x64"
+  },
+  "host_cpu": {
+    "Architecture": "x86_64",
+    "Vendor ID": "GenuineIntel",
+    "Model name": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz"
+  },
+  "input": {
+    "file": "inputs.bin",
+    "sha256": "6bd574af15179cca05f8f249ae0bd8218b22a82ddd01c0b3cd506c00b5a2ba6d",
+    "bytes": 98304,
+    "records": 4096,
+    "layout": "little-endian double,double,float,float"
+  },
+  "solution_cases_per_mode": 473728,
+  "files": {
+    "actual-windows-clr2-d3d-x86.csv": {
+      "sha256": "77891a95c69201b0c7908f8d99fb9ea0d8bc3014f65849fcacd6a3978eac00ad",
+      "rows": 16384,
+      "bytes": 556712
+    },
+    "actual-windows-clr2-x86.csv": {
+      "sha256": "5b6af410484f4cabdc98a294dbff7c71dd482bf5dda0f0a3b10cc29e9927fa80",
+      "rows": 16384,
+      "bytes": 556712
+    },
+    "random-windows-clr2-d3d-x86.csv": {
+      "sha256": "7a568b436cad690a1a4eaea7da086315fc298b8a6be64f20cef28c8d1c982543",
+      "rows": 80000,
+      "bytes": 2851120
+    },
+    "random-windows-clr2-x86.csv": {
+      "sha256": "32d5d6f3e61cb27ca77604ab4cdc71d0c6cd27508b7a59d239ef5344e996b9d4",
+      "rows": 80000,
+      "bytes": 2851120
+    },
+    "windows-clr2-d3d-x86.csv": {
+      "sha256": "59694e762581fae0942d064a3f1e36d0e602b075d949aaa587e887ce4aa18e59",
+      "rows": 381446,
+      "bytes": 12122478
+    },
+    "windows-clr2-x86.csv": {
+      "sha256": "0876a812ee9916a5f94f3d8baf269e239bbe83dbc5a58284f485d57b63ab2d68",
+      "rows": 381446,
+      "bytes": 12122478
+    }
+  }
+}

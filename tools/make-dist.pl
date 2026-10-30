@@ -133,6 +133,7 @@ for my $rid (@rids) {
         unless -f File::Spec->catfile($stage, "THSSS.dll") || -f File::Spec->catfile($stage, "THSSS") || -f File::Spec->catfile($stage, "THSSS.exe");
 
     check_framework($stage);
+    copy_math_source($stage, $rid);
     copy_assets($stage);
     if ($rid =~ /^osx-/) {
         # The exporter runs for the build host, even when publishing another RID.
@@ -327,6 +328,27 @@ sub copy_assets {
     }
 }
 
+sub copy_math_source {
+    my ($stage, $rid) = @_;
+    my $library = $rid =~ /^win-/ ? 'thsss_legacy_math.dll'
+        : $rid =~ /^osx-/ ? 'libthsss_legacy_math.dylib' : 'libthsss_legacy_math.so';
+    die "missing packaged gameplay numeric library: $library\n"
+        unless -s File::Spec->catfile($stage, $library);
+    my $source = File::Spec->catdir($root, 'native', 'LegacyMath');
+    die "missing gameplay numeric notices/source: $source\n"
+        unless -f File::Spec->catfile($source, 'NOTICE.md');
+    my $dest = File::Spec->catdir($stage, 'licenses', 'LegacyMath', 'source');
+    find({ no_chdir => 1, wanted => sub {
+        return unless -f $_;
+        my $relative = File::Spec->abs2rel($_, $source);
+        return if $relative =~ m{(?:^|[\\/])(?:__pycache__|\.git)(?:[\\/]|$)} || $relative =~ /\.pyc$/;
+        my $target = File::Spec->catfile($dest, $relative);
+        make_path(dirname($target));
+        copy_file($_, $target);
+    }}, $source);
+    say '    LegacyMath: replaceable shared library and complete corresponding source/notices';
+}
+
 sub write_setting {
     my ($stage) = @_;
     my $src = File::Spec->catfile($root, 'game', 'Setting.INI');
@@ -391,6 +413,11 @@ $how
 $req
 
 $platform_req
+
+Gameplay uses a replaceable software numeric library containing LGPL and other
+licensed components. Notices, complete corresponding source and build instructions
+are in licenses/LegacyMath/source/NOTICE.md. You may replace the compatible library
+and reverse engineer as needed to debug modifications to that library.
 
 Settings live in Setting.INI next to this file. Saves (Score.dat), replays
 (Replay/) and screenshots (ScreenShot/) are created here on first use and are

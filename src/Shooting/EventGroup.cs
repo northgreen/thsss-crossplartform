@@ -153,7 +153,7 @@ public class EventGroup
 			{
 				execution.value = @event.res;
 			}
-			execution.region = array2[@event.changename].ToString();
+			execution.region = SlimDX.Compat.LegacyFloat.FormatScriptRegion(array2[@event.changename]);
 			execution.time = @event.times;
 			execution.ctime = execution.time;
 			CS_Emitter.EventsExecutionList.Add(execution);
@@ -234,7 +234,7 @@ public class EventGroup
 			{
 				execution.value = @event.res + @event.rand * (float)CS_Bullet.StageData.Ran.NextPMDouble();
 			}
-			execution.region = array2[@event.changename].ToString();
+			execution.region = SlimDX.Compat.LegacyFloat.FormatScriptRegion(array2[@event.changename]);
 			execution.time = @event.times;
 			execution.ctime = execution.time;
 			CS_Bullet.EventsExecutionList.Add(execution);

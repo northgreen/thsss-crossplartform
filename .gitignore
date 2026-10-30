@@ -10,5 +10,8 @@
 # Distribution packages built by tools/make-dist.pl
 /dist/
 
-**/*/Source.dat
-**/*/*.rpy
+game/Source.dat
+game/Source.dat.bak
+game/Replay/*.rpy
+game/Replay/*.rpy
+game/Replay-1/*.rpy

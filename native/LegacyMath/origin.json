@@ -1,0 +1,10 @@
+{
+  "project": "Bochs",
+  "url": "https://github.com/bochs-emu/Bochs",
+  "revision": "104a66e5c939077a5cb1fc744bc21b74a4f77f64",
+  "source_prefix": "bochs/cpu",
+  "vendor_files_unmodified": true,
+  "inventory": "license-inventory.json",
+  "closure": "closure.json",
+  "consolidated": "2026-10-31"
+}

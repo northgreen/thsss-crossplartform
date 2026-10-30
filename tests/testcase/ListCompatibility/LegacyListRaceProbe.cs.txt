@@ -1,0 +1,36 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+class LegacyListRaceProbe
+{
+    static volatile bool stop;
+    static int Main()
+    {
+        if(Environment.Version.Major!=2 || IntPtr.Size!=4) throw new InvalidOperationException("Requires actual CLR2 x86");
+        List<int> growing=new List<int>(1); growing.Add(1);
+        List<int> order=new List<int>();
+        growing.ForEach(delegate(int value) { order.Add(value); if(value==1) { growing.Add(2);growing.Add(3); } });
+        if(order.Count!=3 || order[0]!=1 || order[1]!=2 || order[2]!=3) throw new InvalidOperationException("Unexpected original capacity-growth traversal");
+        List<object> list=new List<object>(4096);
+        object[] values=new object[4096]; for(int i=0;i<values.Length;i++) { values[i]=new object();list.Add(values[i]); }
+        Exception writerError=null;
+        long writes=0,walks=0,seen=0;
+        Thread writer=new Thread(delegate() {
+            try { while(!stop) { list.Clear();for(int i=0;i<values.Length;i++) list.Add(values[i]);writes++; } }
+            catch(Exception error) { writerError=error; }
+        });
+        writer.Start();
+        try
+        {
+            Stopwatch clock=Stopwatch.StartNew();
+            while(clock.ElapsedMilliseconds<2000) { list.ForEach(delegate(object value) { seen++; });walks++; }
+        }
+        finally { stop=true;writer.Join(); }
+        if(writerError!=null) throw writerError;
+        if(writes==0 || walks==0 || seen==0) throw new InvalidOperationException("Concurrency not exercised");
+        Console.WriteLine("CLR="+Environment.Version+"; pointer="+IntPtr.Size);
+        Console.WriteLine("ORIGINAL_LIST_FOREACH_PASS growing=1,2,3 walks="+walks+" writes="+writes+" seen="+seen+"; concurrent clear without checked-indexer failure");
+        return 0;
+    }
+}

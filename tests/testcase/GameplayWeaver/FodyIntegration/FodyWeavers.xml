@@ -1,0 +1,3 @@
+<Weavers>
+  <GameplayMath ExcludeOwnedRandom="true" TargetPointerSize="0" />
+</Weavers>

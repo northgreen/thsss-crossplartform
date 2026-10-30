@@ -11,6 +11,7 @@
 | 音频 | [AUDIO_BACKENDS.md](AUDIO_BACKENDS.md) | 播放语义和平台选择；macOS 细节见上表 |
 | 存档 | [MANAGED_DES_FALLBACK_2026.md](MANAGED_DES_FALLBACK_2026.md) | Wine 缺 DES 时的可选编译回退 |
 | 行为 | [BEHAVIOR_PARITY_FIXES_2026.md](BEHAVIOR_PARITY_FIXES_2026.md) | 行为约定、字体与帧节奏 |
+| 数学 | [MATH_COMPATIBILITY_2026.md](MATH_COMPATIBILITY_2026.md) | Windows x86 CLR2/D3D9 数值基准、差异原因与隔离兼容原型 |
 | Windows | [WINDOWS_STARTUP_FIX_2026.md](WINDOWS_STARTUP_FIX_2026.md) | 图集键与启动错误 |
 | 测试 | [DEJAGNU_TESTS_2026.md](DEJAGNU_TESTS_2026.md) | 驱动结构、判定规则、入口 |
 

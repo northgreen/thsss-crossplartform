@@ -1,0 +1,2 @@
+CLR=2.0.50727.9179; pointer=4
+ORIGINAL_LIST_FOREACH_PASS growing=1,2,3 walks=37552 writes=10541 seen=64164664; concurrent clear without checked-indexer failure

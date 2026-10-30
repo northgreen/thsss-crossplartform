@@ -8,6 +8,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <FodyGenerateXsd>false</FodyGenerateXsd>
     <NoWarn>CS8981;CS0169;CS0414;CS0649;CS0108;CS0618;CS0612;CS0114;SYSLIB0011</NoWarn>
   </PropertyGroup>
   <PropertyGroup Label="Optional">
@@ -24,6 +25,7 @@
     <Compile Remove="Platform/Graphics/Metal/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Fody" Version="[6.9.3]" PrivateAssets="all" />
     <Compile Remove="Config/**/*.cs" />
     <None Remove="Config/**" />
     <EmbeddedResource Remove="Config/**" />
@@ -61,4 +63,11 @@
     <InternalsVisibleTo Include="VulkanBackend" />
     <InternalsVisibleTo Include="MetalShaderExporter" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../tools/GameplayMath.Fody/GameplayMath.Fody.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot;PublishTrimmed" />
+    <WeaverFiles Include="$(MSBuildProjectDirectory)/../tools/GameplayMath.Fody/bin/$(Configuration)/net8.0/GameplayMath.Fody.dll" />
+    <CustomAdditionalCompileInputs Include="@(WeaverFiles)" />
+    <UpToDateCheckInput Include="@(WeaverFiles)" />
+  </ItemGroup>
+  <Import Project="../native/LegacyMath/LegacyMath.targets" />
 </Project>

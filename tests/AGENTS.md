@@ -1,4 +1,4 @@
-# 测试目录（2026-10-29）
+# 测试目录（2026-10-31）
 
 从 `tests/` 运行。SDK 版本由根 `global.json` 固定；安装的 SDK 10 workload manifest 不完整，那是环境问题，不是代码问题。
 
@@ -46,6 +46,7 @@ tests/
 - `MetalApiCompatibility`：Linux x86_64 上用 C 软件驱动替代 libobjc/Metal.framework，验证生产 Metal 后端的 selector、结构体 ABI、命令顺序与窗口呈现调用。
 - `CoreAudioCompatibility`：软件 AudioQueue 驱动，验证时间戳/缓冲区 ABI 与"预取回调不等于播放完成"。
 - `ManagedDesCheck`：托管 DES 与平台 DES 逐字节比对，含 FIPS 向量；该实现只在 `THSSSManagedDesFallback` 构建中存在。
+- `MathBaseline`：真实 Windows CLR2 x86/D3D9 前后数值基准及隔离兼容原型，固定 net8.0 用于与当前目标对照。`sh testcase/MathBaseline/verify.sh` 验证两种精度下合计 947456 项历史结果；不属于生产兼容已通过的声明，不接入正常游戏回归 runner。边界与根因见 `../docs/MATH_COMPATIBILITY_2026.md`。
 
 `BehaviorParityAudit` 是修复前的诊断快照，不属于验收套件，已排除在 runner 之外。
 

@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- The four independent entry points must not share assets, apphost or build caches. -->
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)bin/$(MSBuildProjectName)/</BaseOutputPath>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,33 @@
+<Project>
+  <!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+  <PropertyGroup>
+    <LegacyMathRoot>$(MSBuildThisFileDirectory)</LegacyMathRoot>
+    <LegacyMathRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</LegacyMathRid>
+    <LegacyMathHostOS Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux</LegacyMathHostOS>
+    <LegacyMathHostOS Condition="$([MSBuild]::IsOSPlatform('Windows'))">win</LegacyMathHostOS>
+    <LegacyMathHostOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">osx</LegacyMathHostOS>
+    <LegacyMathHostArch Condition="$([System.String]::Copy('$(NETCoreSdkRuntimeIdentifier)').EndsWith('-x64'))">x64</LegacyMathHostArch>
+    <LegacyMathHostArch Condition="$([System.String]::Copy('$(NETCoreSdkRuntimeIdentifier)').EndsWith('-arm64'))">arm64</LegacyMathHostArch>
+    <LegacyMathRid Condition="'$(LegacyMathRid)' == '' and '$(LegacyMathHostOS)' != '' and '$(LegacyMathHostArch)' != ''">$(LegacyMathHostOS)-$(LegacyMathHostArch)</LegacyMathRid>
+    <LegacyMathRid Condition="'$(LegacyMathRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</LegacyMathRid>
+    <LegacyMathPython Condition="'$(LegacyMathPython)' == '' and '$(OS)' == 'Windows_NT'">python</LegacyMathPython>
+    <LegacyMathPython Condition="'$(LegacyMathPython)' == ''">python3</LegacyMathPython>
+    <LegacyMathLibraryName>libthsss_legacy_math.so</LegacyMathLibraryName>
+    <LegacyMathLibraryName Condition="$([System.String]::Copy('$(LegacyMathRid)').StartsWith('win-'))">thsss_legacy_math.dll</LegacyMathLibraryName>
+    <LegacyMathLibraryName Condition="$([System.String]::Copy('$(LegacyMathRid)').StartsWith('osx-'))">libthsss_legacy_math.dylib</LegacyMathLibraryName>
+    <LegacyMathIntermediateRoot Condition="$([System.IO.Path]::IsPathRooted('$(BaseIntermediateOutputPath)'))">$(BaseIntermediateOutputPath)</LegacyMathIntermediateRoot>
+    <LegacyMathIntermediateRoot Condition="'$(LegacyMathIntermediateRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(BaseIntermediateOutputPath)'))</LegacyMathIntermediateRoot>
+    <LegacyMathOutputDirectory>$([System.IO.Path]::GetFullPath('$(LegacyMathIntermediateRoot)/$(Configuration)/$(TargetFramework)/$(LegacyMathRid)/legacy-math/'))</LegacyMathOutputDirectory>
+    <LegacyMathLibraryPath>$([System.IO.Path]::Combine('$(LegacyMathOutputDirectory)', '$(LegacyMathLibraryName)'))</LegacyMathLibraryPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != ''">
+    <_LegacyMathSources Include="$(LegacyMathRoot)build.py;$(LegacyMathRoot)closure.json;$(LegacyMathRoot)origin.json;$(LegacyMathRoot)license-inventory.json;$(LegacyMathRoot)**/*.cpp;$(LegacyMathRoot)**/*.cc;$(LegacyMathRoot)**/*.h;$(LegacyMathRoot)vendor/*.txt" />
+    <None Include="$(LegacyMathLibraryPath)" Link="$(LegacyMathLibraryName)" TargetPath="$(LegacyMathLibraryName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+  <Target Name="BuildLegacyGameplayMath" BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems;ComputeFilesToPublish"
+          Condition="'$(TargetFramework)' != '' and '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(_LegacyMathSources)" Outputs="$(LegacyMathLibraryPath)">
+    <Error Condition="'$(LegacyMathRid)' == ''" Text="LegacyMath cannot determine the target RID; set RuntimeIdentifier explicitly." />
+    <Exec Command="&quot;$(LegacyMathPython)&quot; &quot;$(LegacyMathRoot)build.py&quot; --rid &quot;$(LegacyMathRid)&quot; --output &quot;$(LegacyMathOutputDirectory)&quot;" />
+  </Target>
+</Project>

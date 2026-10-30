@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Independent CLR2-compatible probes must not share compiler caches or apphosts. -->
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)bin/$(MSBuildProjectName)/</BaseOutputPath>
+  </PropertyGroup>
+</Project>

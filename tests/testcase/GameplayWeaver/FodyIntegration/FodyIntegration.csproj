@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><Optimize>true</Optimize><DebugType>portable</DebugType>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile><FodyGenerateXsd>false</FodyGenerateXsd>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Fixture/*.cs" Link="%(Filename)%(Extension)" />
+    <PackageReference Include="Fody" Version="[6.9.3]" PrivateAssets="all" />
+    <ProjectReference Include="../../../../tools/GameplayMath.Fody/GameplayMath.Fody.csproj" ReferenceOutputAssembly="false" />
+    <WeaverFiles Include="$(MSBuildThisFileDirectory)../../../../tools/GameplayMath.Fody/bin/$(Configuration)/net8.0/GameplayMath.Fody.dll" />
+    <CustomAdditionalCompileInputs Include="@(WeaverFiles)" />
+    <UpToDateCheckInput Include="@(WeaverFiles)" />
+  </ItemGroup>
+</Project>

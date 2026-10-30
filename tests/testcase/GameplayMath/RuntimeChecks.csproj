@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="RuntimeChecks.cs" />
+    <Compile Include="../../../src/Platform/Compat/LegacyFloat.cs" Link="LegacyFloat.cs" />
+    <Compile Include="../../../src/Platform/Compat/LegacyFloat.Integers.cs" Link="LegacyFloat.Integers.cs" />
+    <Compile Include="../../../src/Platform/Compat/LegacyFloat.Vectors.cs" Link="LegacyFloat.Vectors.cs" />
+    <Compile Include="../../../src/Platform/Compat/MathTypes.cs" Link="MathTypes.cs" />
+    <Compile Include="../../../src/Platform/Compat/Matrix.cs" Link="Matrix.cs" />
+  </ItemGroup>
+</Project>

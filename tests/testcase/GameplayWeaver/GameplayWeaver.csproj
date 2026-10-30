@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Fixture/**/*.cs;FodyIntegration/**/*.cs" />
+    <ProjectReference Include="../../../tools/GameplayMath.Fody/GameplayMath.Fody.csproj" />
+    <ProjectReference Include="Fixture/Fixture.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="FodyHelpers" Version="[6.9.3]" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

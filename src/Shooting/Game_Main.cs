@@ -232,6 +232,8 @@ public class Game_Main
 				GlobalData.presentParams.PresentationInterval = PresentInterval.Immediate;
 			}
 			DeviceMain = new SlimDX.Direct3D9.Device(direct3D, defaultAdapter.Adapter, SlimDX.Direct3D9.DeviceType.Hardware, ((Control)Form_Main).Handle, createFlags, GlobalData.presentParams);
+			// Match the original device's effect on game arithmetic without changing the host FPU or renderer.
+			SlimDX.Compat.LegacyFloat.InitializeGameplayThread();
 			GlobalData.SpriteMain = new MySprite(DeviceMain);
 			return true;
 		}

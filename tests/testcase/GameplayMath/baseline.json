@@ -1,0 +1,109 @@
+{
+  "year": 2026,
+  "runtime": "Windows CLR2.0.50727.9179 x86",
+  "original_sha256": "8b2b3bf4a3df620101a2edf32a406a49f71cb985f78e3b0ceff1819826bb0d9e",
+  "inputs_sha256": "0ff85e3a4c8482fe8d7978acf965fb4e947a5ebd069ad88161a06e45b18bd56d",
+  "probe_sha256": "078beec49be463a962c35905bff2e3972a5544889582639a2e9c507fee85216b",
+  "frames_per_scenario": 1024,
+  "scenarios": 8,
+  "files": {
+    "gameplay-windows-clr2-24.csv": {
+      "sha256": "4661e2db054366484e9db9881bcaed81abc5e0b42110f770abea180b3bbc8618",
+      "bytes": 1245179,
+      "rows": 8200,
+      "fpu_control": "0x000A001F"
+    },
+    "gameplay-windows-clr2-53.csv": {
+      "sha256": "26d107e0ffc6304bdaddb21de8e2a6be78f5d339cafbbf5184c76107ae79b919",
+      "bytes": 1245179,
+      "rows": 8200,
+      "fpu_control": "0x0009001F"
+    },
+    "script-windows-clr2-24.csv": {
+      "sha256": "961eeba8f5898d3c606155b4d36c05a84d6dbcd185d960c7ca88ee866cc6feaa",
+      "bytes": 4283118,
+      "rows": 110592,
+      "fpu_control": "0x000A001F"
+    },
+    "script-windows-clr2-53.csv": {
+      "sha256": "e210eb8392c9ad3a703289ce122b36525a9177456328ef45317a62f180a368fa",
+      "bytes": 4283118,
+      "rows": 110592,
+      "fpu_control": "0x0009001F"
+    },
+    "conversion-windows-clr2-24.csv": {
+      "sha256": "1f6dd5faff811de6410dfa51f5d8d396c944998f5549c558a211f9db00020ee9",
+      "rows": 8414,
+      "bytes": 294934,
+      "fpu_control": "0x000A001F"
+    },
+    "conversion-windows-clr2-53.csv": {
+      "sha256": "5a5e325d9d358a3cf4306dc3a2a328fa15b0ed8f068843792335b59e413975d9",
+      "rows": 8414,
+      "bytes": 294934,
+      "fpu_control": "0x0009001F"
+    },
+    "random-edges-clr2-24.csv": {
+      "sha256": "fa57d4f5f94a387d0b56b908ea0e5a0187d0dc27dece38f66689e4394f8c578a",
+      "rows": 2305,
+      "bytes": 80122,
+      "fpu_control": "0x000A001F"
+    },
+    "random-edges-clr2-53.csv": {
+      "sha256": "9e7b2d0342efecc67ca878e78e8e2d33ec49035040b28b30212a825653efc529",
+      "rows": 2305,
+      "bytes": 80122,
+      "fpu_control": "0x0009001F"
+    },
+    "formatting-clr2-24.tsv": {
+      "sha256": "40791eab7f9000d46ee6ab5c76023f0b165d0e39fe80a76f2a9864f26b036fda",
+      "bytes": 2990660
+    },
+    "parsing-clr2-24.tsv": {
+      "sha256": "00d40ca5c32faa636d41e8b7717a8b08d3133caa6e3445fc859cc7649d4ad1b3",
+      "bytes": 212862
+    },
+    "formatting-clr2-53.tsv": {
+      "sha256": "40791eab7f9000d46ee6ab5c76023f0b165d0e39fe80a76f2a9864f26b036fda",
+      "bytes": 2990660
+    },
+    "parsing-clr2-53.tsv": {
+      "sha256": "7c31516405fdd5143af1cb3a953ab7047a22febb23dc1d7e1f3cb2e3f7e3658e",
+      "bytes": 212863
+    },
+    "math-edge-clr2.txt": {
+      "sha256": "fabcdeea2f288309192170d35fa785be665005cf0174aed5a26ae9d19a254665",
+      "bytes": 239
+    }
+  },
+  "script_probe_sha256": "bbf35204eebfe3f65cabc727a9c6fdc4f082d76e855a780fb4d955637d14b469",
+  "script_inputs_sha256": "6bd574af15179cca05f8f249ae0bd8218b22a82ddd01c0b3cd506c00b5a2ba6d",
+  "capture_source_sha256": "d9639402037656030dc545421b3c02f0692a9a9854ea90a462aabde2f5ba30ca",
+  "conversion_probe_sha256": "963d389543194c2440778a6a61e8df64087072c118810e66890092327c4dc398",
+  "conversion_inputs_sha256": "dfd9d5958797516f9ca228ef1a8378ff4c30626ed3077ab7f7a8719abc7489fb",
+  "random_edge_probe_sha256": "88e40bb885e134ef76dc677c6f673fae5eba256eefff23bc093d47e17e4f79ea",
+  "formatting_inputs_sha256": "847e53b317252a64cdf8bed27770fb845e169f67d7bee33b1c8cb3c65decca25",
+  "formatting_probe_sha256": "0124aabde08daa97c13fddc63db00fae25fe30d88db0dbac18c8fed819ce9aa3",
+  "parsing_probe_sha256": "eb7b4e20d3b502f0d9dc3add4a2685892b20464b1a4da1303a048e44f16a1802",
+  "parsing_inputs_sha256": "fbf1f8aaa87dc15533d44d7895f059a875a87473c6c7305a5b35d7fe80e264a3",
+  "text_capture_sha256": "895f88754b0c4d2433c3dc31f0f50f160427fb8f527ce11d1a633a3e5028bc41",
+  "parse_corpus_sha256": "61aaa4e922051038982d53c38ec6c3ccfd422343a55d707e4fe7ee170cb9a171",
+  "text_capture": {
+    "runtime": "CLR2.0.50727.9179 x86",
+    "precision_controls": {
+      "before": "0x0009001F",
+      "after": "0x000A001F"
+    },
+    "formatting_values": 40308,
+    "cultures": [
+      "Invariant",
+      "zh-CN"
+    ],
+    "formatting_rows_per_state": 80616,
+    "parse_unique_asset_literals": 1257,
+    "parse_asset_files": 937,
+    "parse_rows_per_state": 5028,
+    "formatting_scope": "Finite actual gameplay values plus deterministic finite IEEE bit patterns; default Single.ToString; no host G7 substitute"
+  },
+  "math_edge_probe_sha256": "012c5d5bc575db864d7673e82d93d7ae7918206a0a2797c8356b11cdde41cba8"
+}
