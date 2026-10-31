@@ -41,6 +41,8 @@ internal sealed class LiveRun : IDisposable
     private int captured, pausedFrames, maxEntities, maxMyBullets;
     private string? frozen;
     private double lastStageAt;
+    private double nextDiagnosticAt;
+    private string? lastState;
 
     public LiveRun(bool playback, string output, int target)
     {
@@ -92,6 +94,13 @@ internal sealed class LiveRun : IDisposable
         input.SetFocus(true);
         var state = (IGameState)StateTrace.Field(typeof(Game_Main), "PresentState").GetValue(game)!;
         string name = state.GetType().Name;
+        if (name != lastState || clock.Elapsed.TotalSeconds >= nextDiagnosticAt)
+        {
+            var loading = (Thread?)StateTrace.Field(typeof(Game_Main), "LoadingThread").GetValue(game);
+            Console.WriteLine($"[LIVE] seconds={clock.Elapsed.TotalSeconds:F2} state={name}/{state.StageName} capture={captured} requested={requested} focused={game.Form_Main.Focused} OnPause={StateTrace.Field(typeof(Game_Main), "OnPause").GetValue(game)} loading={loading?.ThreadState} visible={window!.IsVisible} windowState={window.WindowState}");
+            lastState = name;
+            nextDiagnosticAt = clock.Elapsed.TotalSeconds + 5;
+        }
         if (!requested)
         {
             if (name != "GameState_MainMenu") return;
@@ -198,6 +207,7 @@ internal sealed class LiveRun : IDisposable
         intervals.Sort();
         var summary = new
         {
+            backend = SlimDX.Compat.LegacyFloat.Backend,
             mode = playback ? "playback" : "record", captured, maxEntities, maxMyBullets,
             distinctPlayerX = playerPositions.Count, pausedFrames, resumed,
             elapsedSeconds = clock.Elapsed.TotalSeconds,

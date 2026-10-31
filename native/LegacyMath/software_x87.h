@@ -16,7 +16,8 @@ typedef struct software_ext80 {
 // Raw operations: 0 on success, -1 on invalid pointer/precision without writing out.
 // Precision is 24 or 53 significant bits; raw results retain the ext80 exponent.
 // Padding is zeroed on output. Scalar invalid precision returns quiet NaN.
-// No errno contract. Each call owns its rounding/exception state; no host FPU use.
+// No errno contract. Software calls own their rounding/exception state without
+// host FPU use; hardware arithmetic saves/restores the complete caller x87 state.
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +43,36 @@ SOFTWARE_API int software_ext_add(const software_ext80 *a, const software_ext80 
 SOFTWARE_API int software_ext_sub(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
 SOFTWARE_API int software_ext_mul(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
 SOFTWARE_API int software_ext_div(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+// Dispatch: 0=auto, 1=software, 2=hardware. Getter returns resolved 1/2.
+// Setter returns -1 for unknown, -2 for unavailable; selection is unchanged.
+SOFTWARE_API int legacy_math_set_backend(int backend);
+SOFTWARE_API int legacy_math_get_backend(void);
+SOFTWARE_API int legacy_ext_load_double(double value, software_ext80 *out);
+SOFTWARE_API int legacy_ext_load_float(float value, software_ext80 *out);
+SOFTWARE_API int legacy_ext_store_double(const software_ext80 *value, double *out);
+SOFTWARE_API int legacy_ext_store_float(const software_ext80 *value, float *out);
+SOFTWARE_API int legacy_ext_sin(const software_ext80 *value, software_ext80 *out);
+SOFTWARE_API int legacy_ext_cos(const software_ext80 *value, software_ext80 *out);
+SOFTWARE_API int legacy_ext_atan2(const software_ext80 *y, const software_ext80 *x, software_ext80 *out);
+SOFTWARE_API int legacy_ext_sqrt(const software_ext80 *value, int precision, software_ext80 *out);
+SOFTWARE_API int legacy_ext_add(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+SOFTWARE_API int legacy_ext_sub(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+SOFTWARE_API int legacy_ext_mul(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+SOFTWARE_API int legacy_ext_div(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+#if defined(__x86_64__)
+SOFTWARE_API int hardware_ext_load_double(double value, software_ext80 *out);
+SOFTWARE_API int hardware_ext_load_float(float value, software_ext80 *out);
+SOFTWARE_API int hardware_ext_store_double(const software_ext80 *value, double *out);
+SOFTWARE_API int hardware_ext_store_float(const software_ext80 *value, float *out);
+SOFTWARE_API int hardware_ext_sin(const software_ext80 *value, software_ext80 *out);
+SOFTWARE_API int hardware_ext_cos(const software_ext80 *value, software_ext80 *out);
+SOFTWARE_API int hardware_ext_atan2(const software_ext80 *y, const software_ext80 *x, software_ext80 *out);
+SOFTWARE_API int hardware_ext_sqrt(const software_ext80 *value, int precision, software_ext80 *out);
+SOFTWARE_API int hardware_ext_add(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+SOFTWARE_API int hardware_ext_sub(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+SOFTWARE_API int hardware_ext_mul(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+SOFTWARE_API int hardware_ext_div(const software_ext80 *a, const software_ext80 *b, int precision, software_ext80 *out);
+#endif
 #ifdef __cplusplus
 }
 #endif

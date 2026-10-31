@@ -12,11 +12,39 @@ public struct LegacyExtended
     public ushort Pad0, Pad1, Pad2;
 }
 
-/// <summary>Software arithmetic used by compiled gameplay, isolated from rendering and host FPU state.</summary>
+/// <summary>Legacy arithmetic used by compiled gameplay, isolated from rendering and host FPU state.</summary>
 public static partial class LegacyFloat
 {
     private const string Kernel = "thsss_legacy_math";
     [ThreadStatic] private static int precision;
+
+    static LegacyFloat()
+    {
+        string requested = Environment.GetEnvironmentVariable("THSSS_MATH_BACKEND");
+        int backend = requested switch
+        {
+            null or "" or "auto" => 0,
+            "software" => 1,
+            "x87" => 2,
+            _ => throw new ArgumentException("THSSS_MATH_BACKEND must be auto, software or x87")
+        };
+        int status = SetBackend(backend);
+        if (status == -2) throw new PlatformNotSupportedException("The current native math library does not support hardware x87");
+        Check(status);
+    }
+
+    /// <summary>Actual selected backend; automatic selection prefers x87 when supported.</summary>
+    public static string Backend => GetBackend() switch
+    {
+        1 => "software",
+        2 => "x87",
+        _ => throw new InvalidOperationException("Native gameplay numeric library returned an invalid backend")
+    };
+
+    [DllImport(Kernel, EntryPoint = "legacy_math_set_backend", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    private static extern int SetBackend(int backend);
+    [DllImport(Kernel, EntryPoint = "legacy_math_get_backend", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    private static extern int GetBackend();
 
     // CLR2 starts new managed threads at 53 bits; original D3D creation changes its calling thread to 24.
     public static int Precision
@@ -25,36 +53,40 @@ public static partial class LegacyFloat
         set => precision = value is 24 or 53 ? value : throw new ArgumentOutOfRangeException(nameof(value), value, "Significand precision must be 24 or 53");
     }
 
-    public static void InitializeGameplayThread() => Precision = 24;
+    public static void InitializeGameplayThread()
+    {
+        Precision = 24;
+        Console.WriteLine("[MATH] backend=" + Backend + " precision=24");
+    }
 
     private static void Check(int status)
     {
         if (status != 0) throw new InvalidOperationException("Portable gameplay numeric ABI rejected an operation: status=" + status);
     }
 
-    [DllImport(Kernel, EntryPoint = "software_ext_load_float", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_load_float", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int LoadSingle(float value, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_load_double", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_load_double", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int LoadDouble(double value, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_store_float", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_store_float", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int StoreSingle(in LegacyExtended value, out float result);
-    [DllImport(Kernel, EntryPoint = "software_ext_store_double", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_store_double", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int StoreDouble(in LegacyExtended value, out double result);
-    [DllImport(Kernel, EntryPoint = "software_ext_sin", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_sin", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int SinRaw(in LegacyExtended value, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_cos", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_cos", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int CosRaw(in LegacyExtended value, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_atan2", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_atan2", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int AtanRaw(in LegacyExtended y, in LegacyExtended x, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_sqrt", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_sqrt", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int SqrtRaw(in LegacyExtended value, int bits, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_add", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_add", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int AddRaw(in LegacyExtended a, in LegacyExtended b, int bits, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_sub", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_sub", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int SubRaw(in LegacyExtended a, in LegacyExtended b, int bits, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_mul", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_mul", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int MulRaw(in LegacyExtended a, in LegacyExtended b, int bits, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "software_ext_div", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [DllImport(Kernel, EntryPoint = "legacy_ext_div", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int DivRaw(in LegacyExtended a, in LegacyExtended b, int bits, out LegacyExtended result);
 
     public static LegacyExtended FromSingle(float value) { Check(LoadSingle(value, out var result)); return result; }

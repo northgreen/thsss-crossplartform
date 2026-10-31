@@ -414,7 +414,8 @@ $req
 
 $platform_req
 
-Gameplay uses a replaceable software numeric library containing LGPL and other
+Gameplay uses a replaceable legacy numeric library with hardware x87 and software
+backends, containing LGPL and other
 licensed components. Notices, complete corresponding source and build instructions
 are in licenses/LegacyMath/source/NOTICE.md. You may replace the compatible library
 and reverse engineer as needed to debug modifications to that library.

@@ -1,4 +1,6 @@
 [
+  "hardware_x87.cpp",
+  "legacy_dispatch.cpp",
   "vendor/softfloat3e/extF80_addsub.cc",
   "vendor/softfloat3e/extF80_div.cc",
   "vendor/softfloat3e/extF80_mul.cc",

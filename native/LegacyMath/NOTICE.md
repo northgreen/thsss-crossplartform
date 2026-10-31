@@ -1,6 +1,6 @@
 # THSSS portable numeric library: notices and source (2026)
 
-This library incorporates a selected Bochs/SoftFloat implementation. It implements arithmetic and transcendental operations in software; it does not execute the original Windows CLR or use native x87 as its runtime implementation.
+This library incorporates a selected Bochs/SoftFloat implementation and a local hardware x87 backend. Supported x64 targets use real x87 arithmetic by default; ARM64 uses the portable software implementation. Both share the verified integer IEEE-format codecs. The library does not execute the original Windows CLR. All corresponding source, notices and replacement rights below apply to the complete distributed library, including its hardware backend.
 
 ## Licensing
 

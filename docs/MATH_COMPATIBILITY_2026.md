@@ -1,14 +1,14 @@
 # CPU 数学兼容性（2026）
 
-影响游玩的生产数值路径使用 `LegacyFloat` 软件扩展数值、旧 `MyRandom` 和 Fody 编译期转换。
-原生内核位于 `native/LegacyMath/`，使用整数实现 x87 算术及超越函数，不依赖宿主 x87/libm；
+影响游玩的生产数值路径使用 `LegacyFloat` 扩展数值、旧 `MyRandom` 和 Fody 编译期转换。
+原生内核位于 `native/LegacyMath/`：支持的 x64 目标默认使用硬件 x87 算术及超越函数，ARM64 使用可移植软件后端，不依赖宿主 libm；
 绘制、相机和纯渲染矩阵不在修复范围。`tests/testcase/MathBaseline/` 保留独立原生 x87 预言机，
 `tests/testcase/GameplayMath/` 验证实际生产程序集。有限黄金样本及同版本 Replay 一致性不代表所有历史 Replay 已证明兼容。
 
 ## 生产实现与验收入口
 
 - `tools/GameplayMath.Fody/` 按游戏逻辑根及其派生类型、实际生成回调选择方法。输出 `src/obj/<配置>/<框架>[/<RID>]/GameplayMath.manifest.json`，保留作用域、类型、转换及 RNG 顺序；未知 IL/含混回调明确失败。绘制及 `IEnvironment` 相机/绘制契约不重写；视觉对象更新仍保留共享 RNG 消耗
-- `src/Platform/Compat/LegacyFloat*.cs` 显式运输 16 字节扩展值，逐操作选择 24/53 位并保留存储边界。`Game_Main` 初始化后进入 24 位，新托管线程默认 53 位；不更改宿主线程硬件控制字
+- `src/Platform/Compat/LegacyFloat*.cs` 显式运输 16 字节扩展值，逐操作选择 24/53 位并保留存储边界。`Game_Main` 初始化后进入 24 位，新托管线程默认 53 位；硬件操作临时设置并完整恢复调用者 x87 状态，软件操作不触碰它，均不改变 MXCSR
 - `BaseObject.Vx/Vy` 使用内部扩展返回通道，setter 的 component 在 sqrt 后、速度 setter 前按真实旧 JIT 落盘。Debug 编译器返回槽单独规范化，未知 getter 结构仍拒绝
 - `MyRandom` 自行保持旧整数状态、浮点缩放、参数异常及 `ranValue`；`EventGroup` 的 `Execution.region` 使用旧七位有效数字文本，包含旧中点舍入和负零行为。现代 `G7` 的 ties-to-even 不能替代它
 - `LegacyFloat.Vectors` 只替换实际游戏调用的 Vector2 运算；共享 `MathTypes` 的绘制运算和纯矩阵 API 保持原状
@@ -21,6 +21,34 @@ sh tools/run-gameplay-math-regressions.sh --configuration Release
 python3 tests/testcase/GameplayRuntime/run_live.py --configuration Debug --frames 900 --timeout 300
 ```
 
+默认 `THSSS_MATH_BACKEND=auto`（不设置也相同）：x64 优先 x87，ARM64 使用 software。
+启动日志打印 `[MATH] backend=x87 precision=24` 或 `backend=software`。
+`THSSS_MATH_BACKEND=software|x87` 只用于显式诊断/回归对照；未知值报错，不支持 x87 的目标强制 x87 也会报错，不静默降级。
+回归入口和实际游戏测试另支持 `--backend auto|software|x87`。
+
+硬件后端使用真实 `FSIN/FCOS/FPATAN/FSQRT` 及 x87 加减乘除，结果保持扩展格式。
+每次硬件运算以 `FNSAVE/FRSTOR` 保存恢复完整栈和控制/状态；并非永久把宿主线程改成旧 FPU 模式。
+float/double 与扩展格式之间的装载/落盘共用经过验证的整数编解码器，避免单纯格式搬运也保存整套 FPU 状态。
+独立软件入口保留用于对照，不因默认硬件分派而改变含义。
+
+Linux x64 的状态与原生性能测试：
+
+```sh
+python3 tests/testcase/GameplayMath/check_backends.py src/bin/Release/net8.0/libthsss_legacy_math.so
+```
+
+它检查两后端的原始位、非法参数/选择错误、满 x87 栈和异常状态恢复，并分别打印原生运算/格式转换热循环中位数。
+原生微基准与实际游戏/追踪耗时分别验收，不把原生加速比直接当作帧率提升；不同 CPU 的超越函数仍需旧基准对照。
+
+2026-10-31，Linux x64/i7-10750H 实测：原生 Sin→Mul→Add 的逐调用中位数从约197ns降至122ns（约1.6倍）；
+共享整数格式转换约7–8ns，未使用昂贵的完整FPU保存做单纯格式搬运。
+两后端 Release 各录制/回放900帧，跨后端的全部逻辑/RNG字段和1800字节Replay键流完全相同。
+该软件渲染/完整追踪场景的回放平均帧间隔为软件27.76ms、x87为27.39ms（约1.3%改善），录制耗时基本相当；
+不能将原生微基准的加速比当作实际游戏帧率提升或稳定60FPS保证。默认Debug自动x87也完成900帧门禁。
+
+实际GUI回归必须移除继承的Wayland显示环境并显式选择X11，再验证私有Xvfb上存在游戏PID所属窗口；
+否则GLFW可绕过Xvfb打开真实桌面窗口，用户焦点变化会触发真实自动暂停，不能把这种失败当作数值不兼容或绕过暂停断言。
+
 前两项分别对照两种精度共 **434,962 行**真实游戏方法、逐帧运动/判定、脚本及随机状态/错误链；
 另验 **74,172 项**标量/向量/转换、**161,232 行**旧 Single 文本和 **10,056 项**实际资产数值解析。
 现有 937 个弹幕资产的 1,257 个数值字符串在两文化/两状态中未见解析差异，不推广到任意外部输入。
@@ -29,7 +57,7 @@ python3 tests/testcase/GameplayRuntime/run_live.py --configuration Debug --frame
 测试包含暂停冻结、恢复、移动和射击。它验证同版本录制/回放，不替代原版全关卡历史 Replay 交叉验证。
 软件绘制、追踪及受限环境的耗时不能直接视为实际硬件帧率。
 
-原生库可构建 Linux/Windows/macOS 的 x64/ARM64 六 RID；SDK8 和 SDK10 均有构建/发布验证。
+原生库支持 Linux/Windows/macOS 的 x64/ARM64 六 RID；SDK8 和 SDK10 有构建/发布验证。
 Linux ARM64 的 .NET 验证使用 QEMU；Windows x64 的数值检查使用真实 Windows VM。未声称实测 Apple 硬件或 Windows ARM64。
 分发包含可替换动态库、完整对应源码及许可证，见 `native/LegacyMath/NOTICE.md`。
 

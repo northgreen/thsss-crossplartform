@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -77,7 +78,9 @@ def sources():
     if len(closure) != len(set(closure)):
         raise InvalidManifest("Duplicate translation unit")
     for name in closure:
-        if name not in entries and name not in ("software_x87.cpp", "memory.cpp"):
+        if name not in entries and name not in (
+            "software_x87.cpp", "hardware_x87.cpp", "legacy_dispatch.cpp", "memory.cpp"
+        ):
             raise InvalidManifest(f"Uninventoried translation unit: {name}")
     return [source_path(name) for name in closure]
 
@@ -107,11 +110,12 @@ def link_command(kind, linker, triple, objects, output, temporary):
         exports = temporary / "exports.txt"
         header = (ROOT / "software_x87.h").read_text().splitlines()
         names = [
-            line.split("software_", 1)[1].split("(", 1)[0]
+            match.group(1)
             for line in header
-            if line.startswith("SOFTWARE_API ")
+            if (match := re.match(r"SOFTWARE_API \w+ (\w+)\(", line))
+            and (architecture == "x86_64" or not match.group(1).startswith("hardware_"))
         ]
-        exports.write_text("".join("_software_" + name + "\n" for name in names))
+        exports.write_text("".join("_" + name + "\n" for name in names))
         return [
             linker,
             "-dylib",
@@ -131,7 +135,7 @@ def link_command(kind, linker, triple, objects, output, temporary):
             *objects,
         ]
     exports = temporary / "exports.map"
-    exports.write_text("{ global: software_*; local: *; };\n")
+    exports.write_text("{ global: software_*; hardware_ext_*; legacy_*; local: *; };\n")
     return [
         linker,
         "-shared",

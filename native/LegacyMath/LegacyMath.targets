@@ -21,7 +21,7 @@
     <LegacyMathLibraryPath>$([System.IO.Path]::Combine('$(LegacyMathOutputDirectory)', '$(LegacyMathLibraryName)'))</LegacyMathLibraryPath>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' != ''">
-    <_LegacyMathSources Include="$(LegacyMathRoot)build.py;$(LegacyMathRoot)closure.json;$(LegacyMathRoot)origin.json;$(LegacyMathRoot)license-inventory.json;$(LegacyMathRoot)**/*.cpp;$(LegacyMathRoot)**/*.cc;$(LegacyMathRoot)**/*.h;$(LegacyMathRoot)vendor/*.txt" />
+    <_LegacyMathSources Include="$(LegacyMathRoot)LegacyMath.targets;$(LegacyMathRoot)build.py;$(LegacyMathRoot)closure.json;$(LegacyMathRoot)origin.json;$(LegacyMathRoot)license-inventory.json;$(LegacyMathRoot)**/*.cpp;$(LegacyMathRoot)**/*.cc;$(LegacyMathRoot)**/*.h;$(LegacyMathRoot)vendor/*.txt" />
     <None Include="$(LegacyMathLibraryPath)" Link="$(LegacyMathLibraryName)" TargetPath="$(LegacyMathLibraryName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
   <Target Name="BuildLegacyGameplayMath" BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems;ComputeFilesToPublish"

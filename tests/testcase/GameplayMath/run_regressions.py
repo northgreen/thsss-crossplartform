@@ -85,7 +85,9 @@ def main():
         default=os.environ.get("THSSS_FRAMEWORK", "net8.0"),
     )
     parser.add_argument("--configuration", choices=("Debug", "Release"), default="Release")
+    parser.add_argument("--backend", choices=("auto", "software", "x87"), default="auto")
     args = parser.parse_args()
+    os.environ["THSSS_MATH_BACKEND"] = args.backend
     if args.framework not in ("net8.0", "net10.0"):
         raise ValueError("Unsupported framework")
     verify_fixtures(MATH)
@@ -247,7 +249,7 @@ def main():
         ):
             raise AssertionError("Weave changed RNG consumption order")
         print(
-            f"GAMEPLAY_MATH_REGRESSIONS_PASS configuration={args.configuration} production_rows={checked_rows}; both_precisions; rendering_excluded; rng_order_preserved"
+            f"GAMEPLAY_MATH_REGRESSIONS_PASS configuration={args.configuration} backend={args.backend} production_rows={checked_rows}; both_precisions; rendering_excluded; rng_order_preserved"
         )
         success = True
     finally:

@@ -95,6 +95,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--configuration", choices=("Debug", "Release"), default="Release")
+    parser.add_argument("--backend", choices=("auto", "software", "x87"), default="auto")
     args = parser.parse_args()
     if not 200 <= args.frames <= 18000 or not 30 <= args.timeout <= 1800:
         parser.error("frames must be 200..18000, timeout 30..1800 seconds")
@@ -127,6 +128,8 @@ def main():
         "THSSS_INPUT",
         "THSSS_WINDOW_HIDDEN",
         "THSSS_SCREENSHOT",
+        "WAYLAND_DISPLAY",
+        "WAYLAND_SOCKET",
     ):
         env.pop(key, None)
     env.update(
@@ -135,6 +138,8 @@ def main():
         ALSOFT_DRIVERS="null",
         LIBGL_ALWAYS_SOFTWARE="1",
         THSSS_DIAG_FPS="1",
+        THSSS_MATH_BACKEND=args.backend,
+        XDG_SESSION_TYPE="x11",
     )
     dll = HERE / "bin" / args.configuration / "net8.0" / "GameplayRuntime.dll"
     for mode in ("record", "playback"):
@@ -147,6 +152,13 @@ def main():
             timeout=args.timeout,
             log=output / f"{mode}.log",
         )
+        summary = json.loads((output / f"{mode}-summary.json").read_text())
+        expected_backend = args.backend
+        if expected_backend == "auto":
+            import platform
+            expected_backend = "x87" if platform.machine().lower() in ("x86_64", "amd64") else "software"
+        if summary["backend"] != expected_backend:
+            raise AssertionError(f"Live game selected {summary['backend']}, expected {expected_backend}")
         print(
             f"{mode}: process {elapsed:.2f}s; "
             + (output / f"{mode}-summary.json").read_text(),

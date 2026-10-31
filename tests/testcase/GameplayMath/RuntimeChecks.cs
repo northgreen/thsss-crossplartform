@@ -6,6 +6,12 @@ using SlimDX.Compat;
 if (args.Length != 1) throw new ArgumentException("Expected GameplayMath fixture directory");
 string root = Path.GetFullPath(args[0]);
 if (Marshal.SizeOf<LegacyExtended>() != 16) throw new InvalidOperationException("Extended ABI must be 16 bytes");
+string requestedBackend = Environment.GetEnvironmentVariable("THSSS_MATH_BACKEND") ?? "auto";
+string expectedBackend = requestedBackend is "auto" or "" ?
+    (RuntimeInformation.ProcessArchitecture == Architecture.X64 ? "x87" : "software") : requestedBackend;
+if (LegacyFloat.Backend != expectedBackend)
+    throw new InvalidOperationException($"Gameplay math selected {LegacyFloat.Backend}; expected {expectedBackend}");
+Console.WriteLine("LEGACY_BACKEND_SELECTION_PASS backend=" + LegacyFloat.Backend);
 var inputs = new List<double>();
 using (var input = new BinaryReader(File.OpenRead(Path.Combine(root, "conversion-inputs.bin"))))
 {
