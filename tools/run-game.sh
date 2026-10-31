@@ -6,4 +6,5 @@ ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 export THSSS_DATA_ROOT
 cd "$ROOT"
 
-exec dotnet run --project "$ROOT/src/THSSS.csproj" --framework "$THSSS_FRAMEWORK" -- "$@"
+# The player launcher must not pay Debug's per-operation gameplay overhead.
+exec dotnet run --configuration Release --project "$ROOT/src/THSSS.csproj" --framework "$THSSS_FRAMEWORK" -- "$@"

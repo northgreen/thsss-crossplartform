@@ -12,6 +12,8 @@ internal static class Entry
     {
         if (args.Length != 2 || !int.TryParse(args[1], out int frames) || frames < 0)
             throw new ArgumentException("Usage: ReplayPerformance ABSOLUTE_OUTPUT frames(0=whole replay)");
+        if (Environment.GetEnvironmentVariable("THSSS_PROFILE_OWNERSHIP") == "1")
+            Assembly.LoadFrom(Path.Combine(AppContext.BaseDirectory, "OwnershipProbe.dll"));
         using var run = new ProfileRun(Path.GetFullPath(args[0]), frames);
         var subscription = new Thread(run.Subscribe) { IsBackground = true };
         subscription.Start();
@@ -30,12 +32,16 @@ internal sealed class ProfileRun : IDisposable
     private static readonly FieldInfo StateField = Field(typeof(Game_Main), "PresentState");
     private static readonly string[] PhaseNames = { "UpdateTicks", "DrawTicks", "PresentTicks", "PacingTicks", "MainTicks", "CallbackTicks" };
     private readonly FieldInfo[]? phaseFields;
+    private readonly FieldInfo[] callCounterFields;
+    private long[]? initialCallCounts;
     private readonly bool backgroundReplayDiagnostic;
+    private readonly bool replayKeyboardIsolated;
     private readonly string output;
     private readonly int limit;
     private readonly Stopwatch wall = Stopwatch.StartNew();
     private readonly List<Frame> rows = new(24000);
     private readonly List<object> transitions = new();
+    private readonly List<string>? stateDigests = Environment.GetEnvironmentVariable("THSSS_PROFILE_STATE_HASH") == "1" ? new() : null;
     private readonly ReplayInfo metadata;
     private readonly long markerOffset;
     private readonly string replayPath;
@@ -63,9 +69,11 @@ internal sealed class ProfileRun : IDisposable
         this.output = output; this.limit = limit;
         Type? counters = typeof(Game_Main).Assembly.GetType("THSSS.Diagnostics.ReplayPhaseCounters");
         backgroundReplayDiagnostic = counters?.GetField("BackgroundReplayDiagnostic")?.GetRawConstantValue() is true;
+        replayKeyboardIsolated = counters?.GetField("ReplayKeyboardIsolated")?.GetRawConstantValue() is true;
         phaseFields = counters == null ? null : PhaseNames.Select(name =>
             counters.GetField(name, BindingFlags.Public | BindingFlags.Static)
             ?? throw new MissingFieldException(counters.FullName, name)).ToArray();
+        callCounterFields = counters?.GetFields(BindingFlags.Public | BindingFlags.Static).Where(f => f.Name.StartsWith("Count_", StringComparison.Ordinal)).ToArray() ?? Array.Empty<FieldInfo>();
         replayPath = Path.Combine(Environment.GetEnvironmentVariable("THSSS_DATA_ROOT")!, "Replay/thSSS_25.rpy");
         metadata = Replay.ReadTitle(replayPath);
         byte[] data = File.ReadAllBytes(replayPath);
@@ -82,6 +90,9 @@ internal sealed class ProfileRun : IDisposable
             stageControlMarkers, terminalMarkerValue = 4080,
             recordedCompletionOffset = metadata.MyPlaneData[^1].DataPosition });
     }
+
+    private static Type OwnershipProbeType() => AppDomain.CurrentDomain.GetAssemblies()
+        .Single(a => a.GetName().Name == "OwnershipProbe").GetType("THSSS.Diagnostics.OwnershipProbe", throwOnError: true)!;
 
     internal static FieldInfo Field(Type type, string name) =>
         type.GetField(name, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
@@ -198,9 +209,16 @@ internal sealed class ProfileRun : IDisposable
 
     private void Ready(IGameState state)
     {
+        if (Environment.GetEnvironmentVariable("THSSS_PROFILE_OWNERSHIP") == "1")
+            OwnershipProbeType().GetMethod("Arm")!.Invoke(null, new object[] { stage! });
+        initialCallCounts = callCounterFields.Select(f => (long)f.GetValue(null)!).ToArray();
+        string expectedDataRoot = Path.GetFullPath(Environment.GetEnvironmentVariable("THSSS_DATA_ROOT")!);
+        if (Path.GetFullPath(Environment.CurrentDirectory) != expectedDataRoot)
+            throw new InvalidOperationException("Replay profiler is not running inside its isolated data root");
         stageAllocatedBefore = GC.GetTotalAllocatedBytes(false);
         var gl = SlimDX.Direct3D9.Device.CurrentContext;
         var ready = new { pid = Environment.ProcessId, stage = state.StageName,
+            dataRoot = expectedDataRoot, currentDirectory = Environment.CurrentDirectory,
             frames = rows.Count, keyPosition = stage!.Rep.DataPosition, markerOffset,
             backend = SlimDX.Compat.LegacyFloat.Backend, renderer = game!.DeviceMain.RenderBackend.Kind.ToString(),
             gpu = gl?.GetStringS(StringName.Renderer), vendor = gl?.GetStringS(StringName.Vendor),
@@ -208,7 +226,7 @@ internal sealed class ProfileRun : IDisposable
             presentInterval = Field(typeof(Game_Main), "presentInterval").GetValue(game),
             fixedFPS = Field(typeof(Game_Main), "fixedFPS").GetValue(game),
             verticalSync = Field(typeof(Game_Main), "verticalSync").GetValue(game),
-            backgroundReplayDiagnostic, phaseCountersAvailable = phaseFields != null, phaseCounterNames = phaseFields == null ? null : PhaseNames,
+            backgroundReplayDiagnostic, replayKeyboardIsolated, phaseCountersAvailable = phaseFields != null, phaseCounterNames = phaseFields == null ? null : PhaseNames,
             stopwatchFrequency = Stopwatch.Frequency };
         if (SlimDX.Compat.LegacyFloat.Backend != "x87") throw new InvalidOperationException("Expected selected x87 backend.");
         Save("ready.json", ready);
@@ -217,6 +235,7 @@ internal sealed class ProfileRun : IDisposable
 
     private void Capture(long timestamp, long callbackTicks)
     {
+        if (rows.Count % 600 == 0) Save("progress.json", new { frames = rows.Count, stageTime = stage!.TimeMain, keyPosition = stage.Rep.DataPosition, timestamp });
         var player = stage!.MyPlane;
         if (player.Life < lastLife) lifeDrops += lastLife - player.Life;
         if (player.DeadTime >= 0 && previousDeadTime < 0) deathEntries++;
@@ -227,6 +246,7 @@ internal sealed class ProfileRun : IDisposable
             player.Life, player.DeadTime, batch ? GC.GetTotalAllocatedBytes(false) : -1,
             batch ? GC.CollectionCount(0) : -1, batch ? GC.CollectionCount(1) : -1, batch ? GC.CollectionCount(2) : -1,
             Phase(0), Phase(1), Phase(2), Phase(3), Phase(4), Phase(5)));
+        if (stateDigests != null) stateDigests.Add($"{stage.Rep.DataPosition},{GameplayDigest.Capture(stage)}");
         lastTimestamp = timestamp; lastTime = stage.TimeMain; lastPosition = stage.Rep.DataPosition;
         lastLife = player.Life; previousDeadTime = player.DeadTime;
         loadingGap = false;
@@ -254,14 +274,18 @@ internal sealed class ProfileRun : IDisposable
         double Percentile(double p) => sorted[Math.Min(sorted.Length - 1, (int)Math.Ceiling(sorted.Length * p) - 1)];
         return new { count = sorted.Length, meanMs = sorted.Average(), p50 = Percentile(.5), p95 = Percentile(.95),
             p99 = Percentile(.99), max = sorted[^1], over16_67 = sorted.Count(x => x > 16.66667),
-            over20 = sorted.Count(x => x > 20), over33 = sorted.Count(x => x > 33) };
+            over20 = sorted.Count(x => x > 20), over25 = sorted.Count(x => x > 25), over33 = sorted.Count(x => x > 33) };
     }
 
     private void Finish(bool end, IGameState state)
     {
+        if (Environment.GetEnvironmentVariable("THSSS_PROFILE_OWNERSHIP") == "1")
+            OwnershipProbeType().GetMethod("SaveReport")!.Invoke(null, new object[] { Path.Combine(output, "ownership-report.json") });
+        if (initialCallCounts != null && callCounterFields.Length > 0)
+            Save("call-counts.json", callCounterFields.Select((f, i) => new { name = f.Name, count = (long)f.GetValue(null)! - initialCallCounts[i] }));
         double milliseconds = 1000.0 / Stopwatch.Frequency;
         var measured = rows.Skip(120).Where(x => !x.LoadingGap).ToArray();
-        Save("summary.json", new { backgroundReplayDiagnostic, recordedStageCompleted = end, endMarkerConsumed = lastPosition == markerOffset + 2, captured = rows.Count, markerOffset, finalKeyPosition = lastPosition,
+        Save("summary.json", new { backgroundReplayDiagnostic, replayKeyboardIsolated, recordedStageCompleted = end, endMarkerConsumed = lastPosition == markerOffset + 2, captured = rows.Count, markerOffset, finalKeyPosition = lastPosition,
             elapsedSeconds = wall.Elapsed.TotalSeconds, lifeDrops, deathEntries, initial, final = Player(stage!.MyPlane),
             expectedFinal = metadata.MyPlaneData[^1], pendingState = state.StateSwitchData?.NextState,
             stageTime = stage.TimeMain, warmupFrames = Math.Min(120, rows.Count),
@@ -280,6 +304,7 @@ internal sealed class ProfileRun : IDisposable
 
     private void WriteCsv()
     {
+        if (stateDigests != null) File.WriteAllLines(Path.Combine(output, "state-digests.csv"), stateDigests);
         using var writer = new StreamWriter(Path.Combine(output, "frames.csv"));
         writer.WriteLine("frame,timestamp,interval_ticks,production_callback_ticks,loading_gap,stage_time,time_delta,key_position,key_bytes,bullets,enemies,items,my_bullets,life,dead_time,allocated_batch,gen0,gen1,gen2,update_ticks,draw_ticks,present_ticks,pacing_ticks,main_ticks,instrumented_callback_ticks");
         for (int i = 0; i < rows.Count; i++)

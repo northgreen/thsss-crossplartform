@@ -1,4 +1,6 @@
 using System;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace SlimDX.Compat;
@@ -64,10 +66,6 @@ public static partial class LegacyFloat
         if (status != 0) throw new InvalidOperationException("Portable gameplay numeric ABI rejected an operation: status=" + status);
     }
 
-    [DllImport(Kernel, EntryPoint = "legacy_ext_load_float", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    private static extern int LoadSingle(float value, out LegacyExtended result);
-    [DllImport(Kernel, EntryPoint = "legacy_ext_load_double", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    private static extern int LoadDouble(double value, out LegacyExtended result);
     [DllImport(Kernel, EntryPoint = "legacy_ext_store_float", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int StoreSingle(in LegacyExtended value, out float result);
     [DllImport(Kernel, EntryPoint = "legacy_ext_store_double", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
@@ -89,10 +87,79 @@ public static partial class LegacyFloat
     [DllImport(Kernel, EntryPoint = "legacy_ext_div", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int DivRaw(in LegacyExtended a, in LegacyExtended b, int bits, out LegacyExtended result);
 
-    public static LegacyExtended FromSingle(float value) { Check(LoadSingle(value, out var result)); return result; }
-    public static LegacyExtended FromDouble(double value) { Check(LoadDouble(value, out var result)); return result; }
-    public static float ToSingle(LegacyExtended value) { Check(StoreSingle(value, out var result)); return result; }
-    public static double ToDouble(LegacyExtended value) { Check(StoreDouble(value, out var result)); return result; }
+    // Exact bit expansion needs no arithmetic or native transition, even for DAZ/FTZ inputs.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static LegacyExtended FromSingle(float value)
+    {
+        uint bits = unchecked((uint)BitConverter.SingleToInt32Bits(value));
+        ushort sign = (ushort)((bits >> 16) & 0x8000);
+        uint exponent = (bits >> 23) & 0xff;
+        ulong fraction = bits & 0x7fffff;
+        if (exponent == 0)
+            return fraction == 0 ? new LegacyExtended { SignExp = sign } : ExpandSubnormal(fraction, sign, 16234);
+        if (exponent == 0xff)
+            return new LegacyExtended { SignExp = (ushort)(sign | 0x7fff),
+                Significand = fraction == 0 ? 0x8000000000000000UL : 0xc000000000000000UL | (fraction << 40) };
+        return new LegacyExtended { SignExp = (ushort)(sign | (exponent + 16256)), Significand = (0x800000UL | fraction) << 40 };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static LegacyExtended FromDouble(double value)
+    {
+        ulong bits = unchecked((ulong)BitConverter.DoubleToInt64Bits(value));
+        ushort sign = (ushort)((bits >> 48) & 0x8000);
+        uint exponent = (uint)((bits >> 52) & 0x7ff);
+        ulong fraction = bits & 0xfffffffffffff;
+        if (exponent == 0)
+            return fraction == 0 ? new LegacyExtended { SignExp = sign } : ExpandSubnormal(fraction, sign, 15309);
+        if (exponent == 0x7ff)
+            return new LegacyExtended { SignExp = (ushort)(sign | 0x7fff),
+                Significand = fraction == 0 ? 0x8000000000000000UL : 0xc000000000000000UL | (fraction << 11) };
+        return new LegacyExtended { SignExp = (ushort)(sign | (exponent + 15360)), Significand = (0x10000000000000UL | fraction) << 11 };
+    }
+
+    private static LegacyExtended ExpandSubnormal(ulong fraction, ushort sign, int exponentBias)
+    {
+        int highest = 63 - BitOperations.LeadingZeroCount(fraction);
+        return new LegacyExtended { SignExp = (ushort)(sign | (highest + exponentBias)), Significand = fraction << (63 - highest) };
+    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float ToSingle(LegacyExtended value)
+    {
+        if (TryExactStore(value, 23, 127, out ulong bits))
+            return BitConverter.Int32BitsToSingle(unchecked((int)bits));
+        Check(StoreSingle(value, out var result)); return result;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static double ToDouble(LegacyExtended value)
+    {
+        if (TryExactStore(value, 52, 1023, out ulong bits))
+            return BitConverter.Int64BitsToDouble(unchecked((long)bits));
+        Check(StoreDouble(value, out var result)); return result;
+    }
+
+    // Only encode values already exactly representable. Every rounding or unusual
+    // ext80 case stays with the native codec, including all NaNs and infinities.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryExactStore(LegacyExtended value, int fractionBits, int bias, out ulong bits)
+    {
+        int exponent = value.SignExp & 0x7fff;
+        bits = (ulong)(value.SignExp >> 15) << (fractionBits == 23 ? 31 : 63);
+        if (value.Significand == 0 && exponent == 0) return true;
+        if (exponent is 0 or 0x7fff || (value.Significand & 0x8000000000000000UL) == 0) return false;
+        int power = exponent - 16383;
+        int shift;
+        bool normal = power >= 1 - bias && power <= bias;
+        if (normal) shift = 63 - fractionBits;
+        else if (power >= 1 - bias - fractionBits && power < 1 - bias)
+            shift = 63 - (power - (1 - bias - fractionBits));
+        else return false;
+        if ((value.Significand & ((1UL << shift) - 1)) != 0) return false;
+        ulong significand = value.Significand >> shift;
+        bits |= normal ? ((ulong)(power + bias) << fractionBits) | (significand & ((1UL << fractionBits) - 1)) : significand;
+        return true;
+    }
     public static LegacyExtended NarrowSingle(LegacyExtended value) => FromSingle(ToSingle(value));
     public static LegacyExtended NarrowDouble(LegacyExtended value) => FromDouble(ToDouble(value));
 

@@ -13,3 +13,4 @@
 - 当前状态与约定集中在 `docs/`，`docs/README.md` 是索引。只保留有效内容，不保留修复前快照。
 - 游戏数值兼容入口：`sh tools/run-gameplay-math-regressions.sh --configuration Debug`（同时验收 Release）；真实输入/暂停/Replay 为 `python3 tests/testcase/GameplayRuntime/run_live.py --configuration Debug`，始终使用临时数据。Fody 只重写游戏逻辑，构建需要 Python 3 和 Clang/LLVM；分发必须带 `native/LegacyMath/` 完整对应源码与许可。详见 `docs/MATH_COMPATIBILITY_2026.md`。
 - 数值后端默认 x64 使用硬件 x87、ARM64 使用软件；`THSSS_MATH_BACKEND=auto|software|x87` 为显式诊断覆盖，测试可传 `--backend`。两后端必须使用同一旧基准并保持16字节扩展ABI，硬件运算须保存/恢复完整x87状态，格式搬运共享整数编解码器；不得以切硬件为由改变舍入边界或忽略性能实测。
+- 玩家入口 `tools/run-game.sh` 使用 Release，避免默认 Debug 的游玩数值开销；调试构建由显式 `dotnet run -c Debug --project src/THSSS.csproj` 或测试入口选择。性能比较必须使用同一实际 framebuffer、Replay 键偏移和配置，非推进回调不能当作新游戏帧。

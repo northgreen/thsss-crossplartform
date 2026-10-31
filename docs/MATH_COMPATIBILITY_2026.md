@@ -12,6 +12,11 @@
 - `BaseObject.Vx/Vy` 使用内部扩展返回通道，setter 的 component 在 sqrt 后、速度 setter 前按真实旧 JIT 落盘。Debug 编译器返回槽单独规范化，未知 getter 结构仍拒绝
 - `MyRandom` 自行保持旧整数状态、浮点缩放、参数异常及 `ranValue`；`EventGroup` 的 `Execution.region` 使用旧七位有效数字文本，包含旧中点舍入和负零行为。现代 `G7` 的 ties-to-even 不能替代它
 - `LegacyFloat.Vectors` 只替换实际游戏调用的 Vector2 运算；共享 `MathTypes` 的绘制运算和纯矩阵 API 保持原状
+- `LegacyFloat.Geometry` 将距离、圆形与椭圆命中表达式作为完整数值块执行，保留坐标读取顺序、sqrt 前与公有方法返回的 binary64 边界、Region 的 binary32 转换及严格比较；虚派发、候选顺序和命中算法不变。每个硬件块只保存/恢复一次 FPU 状态
+- 圆形数值块内的保守整数粗筛只提前拒绝明确远离的候选：在稳定坐标、有限且受限的非负半径域，用外扩的整数上界加16像素余量。任一守卫不满足就回退原精确图；不改变候选顺序，不直接接受命中，不使用平方距离替换
+- 椭圆块内的方向加角度、距离加目标范围与三角函数结果保持扩展中间值；仅在原 IL 的显式转换、Math 参数及公有返回处落盘，不把 C# 的 double 局部声明当成存储边界。实际物理更新由窗口线程顺序执行；标量捕获不承诺任意并发位置写入与原计算间穿插时序等价
+- 移动块保留 `MovePoint` 分支、两次完整 `Position` getter、四次原坐标读取、六次边界偏移读取，以及最终 setter 的独立单精度落盘。原坐标加偏移再减偏移不能代数消除；块返回 `OriginalPosition`，不再重复调用 `Position` setter
+- `FromSingle/FromDouble` 使用逐位整数展开，精确保留符号、次正规数及旧 NaN quiet/payload 规则；`ToSingle/ToDouble` 只对已精确可表示的规范值走整数编码，所有舍入、非规范 ext80、NaN/无穷与越界都回退原 native codec。算术仍走选定 x87/软件后端，没有借机改成宿主浮点计算或忽略 GC 转换约束
 
 执行生产回归（需要 .NET、Python 3 和 Clang/LLVM；源码构建还需要 Fody 包还原）：
 

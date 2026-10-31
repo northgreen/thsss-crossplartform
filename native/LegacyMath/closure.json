@@ -1,4 +1,7 @@
 [
+  "native_geometry.cpp",
+  "native_ellipse.cpp",
+  "native_motion.cpp",
   "hardware_x87.cpp",
   "legacy_dispatch.cpp",
   "vendor/softfloat3e/extF80_addsub.cc",

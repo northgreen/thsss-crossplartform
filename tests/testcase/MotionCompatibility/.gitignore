@@ -1,0 +1,5 @@
+bin/
+obj/
+__pycache__/
+motion-capture-*/
+motion-verify-*/

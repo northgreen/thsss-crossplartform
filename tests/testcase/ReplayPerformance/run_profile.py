@@ -44,6 +44,14 @@ def stage_assets(output):
     for name in ("Image", "Model", "FX", "Sound", "Story", "BGM", "CS", "BPic"):
         shutil.copytree(ROOT / "game" / name, data / name)
     shutil.copy2(ROOT / "game/Setting.INI", data / "Setting.INI")
+    # Replay speed controls are live keyboard inputs, not recorded key words.
+    # A diagnostic run must not consume the user's typing while it runs in background.
+    setting = data / "Setting.INI"
+    contents = setting.read_bytes()
+    if b"UseDirectInput=1" in contents:
+        setting.write_bytes(contents.replace(b"UseDirectInput=1", b"UseDirectInput=0"))
+    elif b"UseDirectInput=0" not in contents:
+        raise ValueError("Temporary setting has no recognized UseDirectInput value")
     (data / "Replay").mkdir()
     (data / "ScreenShot").mkdir()
     shutil.copy2(ROOT / "game/Replay/thSSS_25.rpy", data / "Replay/thSSS_25.rpy")

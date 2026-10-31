@@ -6,4 +6,5 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../../../src/THSSS.csproj" /></ItemGroup>
+  <ItemGroup><Compile Remove="OwnershipChecks/**/*.cs" /></ItemGroup>
 </Project>

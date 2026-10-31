@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="LoadCodecChecks.cs" />
+    <Compile Include="../../../src/Platform/Compat/LegacyFloat.cs" Link="LegacyFloat.cs" />
+    <Compile Include="../../../src/Platform/Compat/LegacyFloat.Integers.cs" Link="LegacyFloat.Integers.cs" />
+  </ItemGroup>
+  <Target Name="BuildLoadCodecStateHelper" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <Exec Command="c++ -std=c++11 -O2 -Wall -Wextra -Werror -shared -fPIC &quot;$(MSBuildProjectDirectory)/LoadCodec/host_state.cpp&quot; -o &quot;$(TargetDir)libload_codec_state.so&quot;" />
+  </Target>
+</Project>

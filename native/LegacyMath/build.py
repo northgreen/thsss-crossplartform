@@ -79,7 +79,7 @@ def sources():
         raise InvalidManifest("Duplicate translation unit")
     for name in closure:
         if name not in entries and name not in (
-            "software_x87.cpp", "hardware_x87.cpp", "legacy_dispatch.cpp", "memory.cpp"
+            "software_x87.cpp", "hardware_x87.cpp", "legacy_dispatch.cpp", "native_geometry.cpp", "native_ellipse.cpp", "native_motion.cpp", "memory.cpp"
         ):
             raise InvalidManifest(f"Uninventoried translation unit: {name}")
     return [source_path(name) for name in closure]
@@ -135,7 +135,7 @@ def link_command(kind, linker, triple, objects, output, temporary):
             *objects,
         ]
     exports = temporary / "exports.map"
-    exports.write_text("{ global: software_*; hardware_ext_*; legacy_*; local: *; };\n")
+    exports.write_text("{ global: software_*; hardware_*; legacy_*; local: *; };\n")
     return [
         linker,
         "-shared",

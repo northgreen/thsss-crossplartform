@@ -868,7 +868,26 @@ public class BaseObject
 				MovePoint();
 			}
 		}
-		Position = new PointF((float)((double)Position.X + (double)Velocity * Math.Cos(Direction) * (double)scaleX), (float)((double)Position.Y + (double)Velocity * Math.Sin(Direction) * (double)scaleY));
+		// Preserve both Position getter captures and the setter offsets; their
+		// binary32 boundaries cannot be canceled into a direct origin increment.
+		PointF originX1 = OriginalPosition;
+		int left1 = BoundRect.Left;
+		PointF originY1 = OriginalPosition;
+		int top1 = BoundRect.Top;
+		float velocityX = Velocity;
+		double directionX = Direction;
+		float motionScaleX = scaleX;
+		PointF originX2 = OriginalPosition;
+		int left2 = BoundRect.Left;
+		PointF originY2 = OriginalPosition;
+		int top2 = BoundRect.Top;
+		float velocityY = Velocity;
+		double directionY = Direction;
+		float motionScaleY = scaleY;
+		int setterLeft = BoundRect.Left;
+		int setterTop = BoundRect.Top;
+		OriginalPosition = SlimDX.Compat.LegacyFloat.MotionStep(originX1, left1, originY1, top1, velocityX, directionX, motionScaleX,
+			originX2, left2, originY2, top2, velocityY, directionY, motionScaleY, setterLeft, setterTop);
 	}
 
 	public void MovePoint()
@@ -925,26 +944,33 @@ public class BaseObject
 		}
 		if (ScaleLength == ScaleWidth)
 		{
-			if (GetDistance(Target) - (double)((float)Target.Region * Target.Scale) < (double)(Radius * Scale))
-			{
-				return true;
-			}
+			// Target is captured first, followed by the four original position reads.
+			PointF targetPosition = Target.OriginalPosition;
+			return SlimDX.Compat.LegacyFloat.CircleHit(targetPosition,
+				OriginalPosition, OriginalPosition, OriginalPosition, OriginalPosition,
+				Target.Region, Target.Scale, Radius, Scale);
 		}
 		else
 		{
-			double num = (AngleWithDirection ? (Direction + Angle) : Angle);
-			double num2 = GetDistance(Target) + (double)((float)Target.Region * Target.Scale);
-			double num3 = GetDirection(Target);
-			double num4 = num2 * Math.Cos((float)(num - num3));
-			double num5 = num2 * Math.Sin((float)(num - num3));
-			double num6 = Radius * ScaleWidth;
-			double num7 = Radius * ScaleLength;
-			if (num5 * num5 / num6 / num6 + num4 * num4 / num7 / num7 < 1.0)
-			{
-				return true;
-			}
+			// Capture stored operands in their original order; the angle sum stays
+			// extended inside the native block rather than gaining a double spill.
+			bool withDirection = AngleWithDirection;
+			double capturedDirection = withDirection ? Direction : 0.0;
+			double capturedAngle = Angle;
+			PointF distanceTarget = Target.OriginalPosition;
+			PointF xFirst = OriginalPosition;
+			PointF xSecond = OriginalPosition;
+			PointF yFirst = OriginalPosition;
+			PointF ySecond = OriginalPosition;
+			int targetRegion = Target.Region;
+			float targetScale = Target.Scale;
+			PointF directionTarget = Target.OriginalPosition;
+			PointF directionY = OriginalPosition;
+			PointF directionX = OriginalPosition;
+			return SlimDX.Compat.LegacyFloat.EllipseHit(withDirection, capturedDirection, capturedAngle,
+				distanceTarget, xFirst, xSecond, yFirst, ySecond, targetRegion, targetScale,
+				directionTarget, directionY, directionX, Radius, ScaleWidth, ScaleLength);
 		}
-		return false;
 	}
 
 	public virtual void HitCheckAll()
@@ -1098,7 +1124,8 @@ public class BaseObject
 
 	public double GetDistance(PointF TargetOriginalPosition)
 	{
-		return Math.Sqrt((OriginalPosition.X - TargetOriginalPosition.X) * (OriginalPosition.X - TargetOriginalPosition.X) + (OriginalPosition.Y - TargetOriginalPosition.Y) * (OriginalPosition.Y - TargetOriginalPosition.Y));
+		return SlimDX.Compat.LegacyFloat.Distance(OriginalPosition, OriginalPosition,
+			OriginalPosition, OriginalPosition, TargetOriginalPosition);
 	}
 
 	public virtual void Copy(BaseObject b)
