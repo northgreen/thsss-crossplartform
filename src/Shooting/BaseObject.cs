@@ -868,6 +868,10 @@ public class BaseObject
 				MovePoint();
 			}
 		}
+#if THSSS_MATH_OFF
+		// Off deliberately restores the original C# expression under ordinary .NET arithmetic.
+		Position = new PointF((float)((double)Position.X + (double)Velocity * Math.Cos(Direction) * (double)scaleX), (float)((double)Position.Y + (double)Velocity * Math.Sin(Direction) * (double)scaleY));
+#else
 		// Preserve both Position getter captures and the setter offsets; their
 		// binary32 boundaries cannot be canceled into a direct origin increment.
 		PointF originX1 = OriginalPosition;
@@ -888,6 +892,7 @@ public class BaseObject
 		int setterTop = BoundRect.Top;
 		OriginalPosition = SlimDX.Compat.LegacyFloat.MotionStep(originX1, left1, originY1, top1, velocityX, directionX, motionScaleX,
 			originX2, left2, originY2, top2, velocityY, directionY, motionScaleY, setterLeft, setterTop);
+#endif
 	}
 
 	public void MovePoint()
@@ -938,6 +943,21 @@ public class BaseObject
 
 	public virtual bool HitCheck(BaseObject Target, float Radius)
 	{
+#if THSSS_MATH_OFF
+		if (Time < 9) return false;
+		if (ScaleLength == ScaleWidth)
+		{
+			return GetDistance(Target) - (double)((float)Target.Region * Target.Scale) < (double)(Radius * Scale);
+		}
+		double num = AngleWithDirection ? Direction + Angle : Angle;
+		double num2 = GetDistance(Target) + (double)((float)Target.Region * Target.Scale);
+		double num3 = GetDirection(Target);
+		double num4 = num2 * Math.Cos((float)(num - num3));
+		double num5 = num2 * Math.Sin((float)(num - num3));
+		double num6 = Radius * ScaleWidth;
+		double num7 = Radius * ScaleLength;
+		return num5 * num5 / num6 / num6 + num4 * num4 / num7 / num7 < 1.0;
+#else
 		if (Time < 9)
 		{
 			return false;
@@ -971,6 +991,7 @@ public class BaseObject
 				distanceTarget, xFirst, xSecond, yFirst, ySecond, targetRegion, targetScale,
 				directionTarget, directionY, directionX, Radius, ScaleWidth, ScaleLength);
 		}
+#endif
 	}
 
 	public virtual void HitCheckAll()
@@ -1124,8 +1145,12 @@ public class BaseObject
 
 	public double GetDistance(PointF TargetOriginalPosition)
 	{
+#if THSSS_MATH_OFF
+		return Math.Sqrt((OriginalPosition.X - TargetOriginalPosition.X) * (OriginalPosition.X - TargetOriginalPosition.X) + (OriginalPosition.Y - TargetOriginalPosition.Y) * (OriginalPosition.Y - TargetOriginalPosition.Y));
+#else
 		return SlimDX.Compat.LegacyFloat.Distance(OriginalPosition, OriginalPosition,
 			OriginalPosition, OriginalPosition, TargetOriginalPosition);
+#endif
 	}
 
 	public virtual void Copy(BaseObject b)

@@ -62,6 +62,26 @@ dotnet publish src/Config/THSSS.Config.csproj -f net8.0 -c Release -o artifacts/
 
 SDK 10 下将 `-f net8.0` 换为 `-f net10.0` 即可构建另一版本；直接 `dotnet build` 会构建当前 SDK 支持的所有目标。发布版会附带只读资源和 `game/Setting.INI` 中的当前配置，运行后在自己的目录创建存档/录像；**不会把 `game/Score.dat` 或你的录像打进发布包**。已有玩家数据只需保留在 `game/`，不要拿测试数据覆盖。
 
+### 数学兼容构建模式
+
+编译参数 `THSSSMathMode` 支持三种模式，默认 `auto`：
+
+| 模式 | 行为 |
+|---|---|
+| `auto` | 启用旧 CLR 数值兼容；x64 优先硬件 x87，ARM64 使用软件后端 |
+| `software` | 启用相同兼容修复，强制软件 x87；冲突的 `THSSS_MATH_BACKEND=x87` 会明确报错 |
+| `off` | 关闭兼容修复、数值 IL 织入及原生数学库，使用普通 .NET 数学；不保证旧 Replay 一致 |
+
+```sh
+dotnet build src/THSSS.csproj -c Release -f net8.0 -p:THSSSMathMode=software
+dotnet publish src/THSSS.csproj -c Release -f net8.0 -p:THSSSMathMode=off -o artifacts/plain-dotnet
+perl tools/make-dist.pl --rid linux-x64 --math-mode software
+```
+
+CI 手动运行 `Package` 时选择 `math_mode`；标签发布默认 `auto`。非默认模式的 CI 产物带 `-software` 或 `-off` 后缀。包内 `THSSS.math-mode.json` 记录实际编译模式及游戏 DLL 哈希，不能通过重命名产物切换模式。切换模式时正常执行 restore/build，不要复用另一模式的 `--no-restore` 或 `--no-build` 产物。
+
+`auto` 构建仍可用 `THSSS_MATH_BACKEND=software` 在启动时强制软件后端，或用 `x87` 强制硬件；不支持的硬件后端会报错。运行 `tools/run-game.sh` 会按默认模式重新构建，测试自选模式产物时直接运行该产物。
+
 ## 验证
 
 ```sh

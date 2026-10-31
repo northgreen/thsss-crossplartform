@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "FodyHelpers": {
+        "type": "Direct",
+        "requested": "[6.9.3, 6.9.3]",
+        "resolved": "6.9.3",
+        "contentHash": "c75VQraygFPKpxtg9WE7XVFZwCPS2K88N5K9BIxGqyj/woHVrsubFAl9uWv/6e8oBY35lHgbdPLgrCLXknD16A=="
+      }
+    }
+  }
+}

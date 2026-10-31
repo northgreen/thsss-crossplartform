@@ -30,6 +30,11 @@ public static partial class LegacyFloat
             "x87" => 2,
             _ => throw new ArgumentException("THSSS_MATH_BACKEND must be auto, software or x87")
         };
+#if THSSS_MATH_SOFTWARE
+        if (backend == 2)
+            throw new ArgumentException("THSSS_MATH_BACKEND=x87 conflicts with compile-time THSSSMathMode=software");
+        backend = 1;
+#endif
         int status = SetBackend(backend);
         if (status == -2) throw new PlatformNotSupportedException("The current native math library does not support hardware x87");
         Check(status);
@@ -58,7 +63,11 @@ public static partial class LegacyFloat
     public static void InitializeGameplayThread()
     {
         Precision = 24;
-        Console.WriteLine("[MATH] backend=" + Backend + " precision=24");
+#if THSSS_MATH_SOFTWARE
+        Console.WriteLine("[MATH] mode=software backend=" + Backend + " precision=24");
+#else
+        Console.WriteLine("[MATH] mode=auto backend=" + Backend + " precision=24");
+#endif
     }
 
     private static void Check(int status)

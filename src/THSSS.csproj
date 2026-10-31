@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="../TargetFrameworks.props" />
+  <Import Project="GameplayMathMode.targets" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>Shooting</RootNamespace>
@@ -25,7 +26,7 @@
     <Compile Remove="Platform/Graphics/Metal/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Fody" Version="[6.9.3]" PrivateAssets="all" />
+    <PackageReference Include="Fody" Version="[6.9.3]" PrivateAssets="all" Condition="'$(THSSSMathMode)' != 'off'" />
     <Compile Remove="Config/**/*.cs" />
     <None Remove="Config/**" />
     <EmbeddedResource Remove="Config/**" />
@@ -63,11 +64,14 @@
     <InternalsVisibleTo Include="VulkanBackend" />
     <InternalsVisibleTo Include="MetalShaderExporter" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(THSSSMathMode)' != 'off'">
     <ProjectReference Include="../tools/GameplayMath.Fody/GameplayMath.Fody.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot;PublishTrimmed" />
     <WeaverFiles Include="$(MSBuildProjectDirectory)/../tools/GameplayMath.Fody/bin/$(Configuration)/net8.0/GameplayMath.Fody.dll" />
     <CustomAdditionalCompileInputs Include="@(WeaverFiles)" />
     <UpToDateCheckInput Include="@(WeaverFiles)" />
   </ItemGroup>
-  <Import Project="../native/LegacyMath/LegacyMath.targets" />
+  <ItemGroup Condition="'$(THSSSMathMode)' == 'off'">
+    <Compile Remove="Platform/Compat/LegacyFloat*.cs" />
+  </ItemGroup>
+  <Import Project="../native/LegacyMath/LegacyMath.targets" Condition="'$(THSSSMathMode)' != 'off'" />
 </Project>

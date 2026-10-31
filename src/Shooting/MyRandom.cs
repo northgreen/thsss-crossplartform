@@ -1,8 +1,46 @@
 using System;
+#if !THSSS_MATH_OFF
 using SlimDX.Compat;
+#endif
 
 namespace Shooting;
 
+#if THSSS_MATH_OFF
+// Off uses the original Random subclass, including base overload dispatch and seed handling.
+public class MyRandom : Random
+{
+	public int ranValue { get; private set; }
+	public MyRandom() { }
+	public MyRandom(int Seed) : base(Seed) { }
+	public override int Next()
+	{
+		ranValue = base.Next();
+		return ranValue;
+	}
+	public override int Next(int maxValue)
+	{
+		ranValue = base.Next(maxValue);
+		return ranValue;
+	}
+	public override int Next(int minValue, int maxValue)
+	{
+		ranValue = base.Next(minValue, maxValue);
+		return ranValue;
+	}
+	public override double NextDouble()
+	{
+		double num = base.NextDouble();
+		ranValue = (int)(num * 100.0);
+		return num;
+	}
+	public override void NextBytes(byte[] buffer)
+	{
+		ranValue = 0;
+		base.NextBytes(buffer);
+	}
+	public double NextPMDouble() => 2.0 * NextDouble() - 1.0;
+}
+#else
 public class MyRandom : Random
 {
 	private readonly int[] seedArray = new int[56];
@@ -105,3 +143,4 @@ public class MyRandom : Random
 			LegacyFloat.Mul(LegacyFloat.FromInt32(2), LegacyFloat.FromDouble(NextDouble())), LegacyFloat.FromInt32(1)));
 	}
 }
+#endif

@@ -54,6 +54,7 @@ my %opt = (
     'skip-build' => 0,
     clean        => 0,
     'wine-compat' => 0,
+    'math-mode' => 'auto',
 );
 GetOptions(
     'out=s'          => \$opt{out},
@@ -64,8 +65,12 @@ GetOptions(
     'skip-build'     => \$opt{'skip-build'},
     'clean'          => \$opt{clean},
     'wine-compat'    => \$opt{'wine-compat'},
+    'math-mode=s'    => \$opt{'math-mode'},
 ) or usage(2);
 
+die "unsupported math mode: '$opt{'math-mode'}' (use auto, software or off)\n"
+    unless $opt{'math-mode'} =~ /\A(?:auto|software|off)\z/;
+my $mode_suffix = $opt{'math-mode'} eq 'auto' ? '' : "-$opt{'math-mode'}";
 my $host_framework = default_framework();
 $opt{framework} //= $host_framework;
 die "unsupported framework: $opt{framework} (use net8.0 or net10.0)\n"
@@ -78,7 +83,7 @@ my @rids = grep { length } split /,/, $opt{rid};
 usage(2, "--rid gave no runtimes") unless @rids;
 
 my $stamp = strftime('%Y%m%d-%H%M%S', localtime);
-my $out = $opt{out} // File::Spec->catdir($root, 'dist', "thsss-$stamp");
+my $out = $opt{out} // File::Spec->catdir($root, 'dist', "thsss-$stamp$mode_suffix");
 $out = File::Spec->rel2abs($out);
 
 my @required = (
@@ -121,7 +126,7 @@ if ($opt{clean}) {
 my $total = 0;
 for my $rid (@rids) {
     my $stage = @rids == 1 ? $out : File::Spec->catdir($out, $rid);
-    say "==> $rid / $opt{framework} -> $stage";
+    say "==> $rid$mode_suffix / $opt{framework} / math=$opt{'math-mode'} -> $stage";
 
     die "output already exists: $stage; choose --out or use --clean for an old dist package\n"
         if -e $stage && !$opt{'skip-build'};
@@ -133,7 +138,12 @@ for my $rid (@rids) {
         unless -f File::Spec->catfile($stage, "THSSS.dll") || -f File::Spec->catfile($stage, "THSSS") || -f File::Spec->catfile($stage, "THSSS.exe");
 
     check_framework($stage);
-    copy_math_source($stage, $rid);
+    check_math_mode($stage);
+    if ($opt{'math-mode'} eq 'off') {
+        remove_math_output($stage);
+    } else {
+        copy_math_source($stage, $rid);
+    }
     copy_assets($stage);
     if ($rid =~ /^osx-/) {
         # The exporter runs for the build host, even when publishing another RID.
@@ -176,6 +186,7 @@ usage: perl tools/make-dist.pl [options]
   --skip-build           reuse existing bin output, do not run dotnet publish
   --clean                delete an old output subdirectory under this repo's dist/
   --wine-compat          build the game with the managed DES fallback (Wine/Proton)
+  --math-mode MODE       auto (default), software or off; must match published DLL
 USAGE
     exit $code;
 }
@@ -242,6 +253,7 @@ sub publish {
         '-o', $stage,
         '-p:WarningLevel=0',
         '-p:GenerateResourceWarnOnBinaryFormatterUse=false',
+        "-p:THSSSMathMode=$opt{'math-mode'}",
         # Wine's bcrypt has no DES provider, so a save cannot be encrypted there
         # without the managed implementation. Native Windows keeps using CNG.
         ($opt{'wine-compat'} ? ('-p:THSSSManagedDesFallback=true') : ()),
@@ -328,6 +340,48 @@ sub copy_assets {
     }
 }
 
+sub check_math_mode {
+    my ($stage) = @_;
+    my $path = File::Spec->catfile($stage, 'THSSS.math-mode.json');
+    open my $fh, '<', $path or die "cannot read math mode record $path: $!\n";
+    local $/;
+    my $record = eval { decode_json(<$fh>) };
+    close $fh;
+    die "invalid math mode record: $path (expected mode and SHA-256)\n"
+        unless ref($record) eq 'HASH'
+        && defined($record->{mode}) && !ref($record->{mode})
+        && $record->{mode} =~ /\A(?:auto|software|off)\z/
+        && defined($record->{sha256}) && !ref($record->{sha256})
+        && $record->{sha256} =~ /\A[0-9a-fA-F]{64}\z/;
+    die "math mode mismatch: published '$record->{mode}', requested '$opt{'math-mode'}'\n"
+        unless $record->{mode} eq $opt{'math-mode'};
+    my $dll = File::Spec->catfile($stage, 'THSSS.dll');
+    open my $assembly, '<', $dll or die "cannot read math mode assembly $dll: $!\n";
+    binmode $assembly;
+    my $sha = Digest::SHA->new(256)->addfile($assembly)->hexdigest;
+    close $assembly;
+    die "math mode SHA-256 mismatch: $dll; republish before packaging\n"
+        unless lc($record->{sha256}) eq $sha;
+}
+
+sub remove_math_output {
+    my ($stage) = @_;
+    # Only these generated numeric artifacts belong to the disabled component.
+    for my $name (qw(thsss_legacy_math.dll libthsss_legacy_math.so libthsss_legacy_math.dylib GameplayMath.manifest.json)) {
+        my $path = File::Spec->catfile($stage, $name);
+        next unless -e $path || -l $path;
+        unlink $path or die "cannot remove disabled math artifact $path: $!\n";
+    }
+    my $source = File::Spec->catdir($stage, 'licenses', 'LegacyMath', 'source');
+    return unless -e $source || -l $source;
+    if (-l $source) {
+        unlink $source or die "cannot remove disabled math source link $source: $!\n";
+        return;
+    }
+    remove_tree($source, { error => \my $errors });
+    die "cannot remove disabled math source: $source\n" if @$errors;
+}
+
 sub copy_math_source {
     my ($stage, $rid) = @_;
     my $library = $rid =~ /^win-/ ? 'thsss_legacy_math.dll'
@@ -335,8 +389,10 @@ sub copy_math_source {
     die "missing packaged gameplay numeric library: $library\n"
         unless -s File::Spec->catfile($stage, $library);
     my $source = File::Spec->catdir($root, 'native', 'LegacyMath');
-    die "missing gameplay numeric notices/source: $source\n"
-        unless -f File::Spec->catfile($source, 'NOTICE.md');
+    for my $name (qw(NOTICE.md build.py software_x87.cpp)) {
+        die "missing gameplay numeric notices/source: $source/$name\n"
+            unless -s File::Spec->catfile($source, $name);
+    }
     my $dest = File::Spec->catdir($stage, 'licenses', 'LegacyMath', 'source');
     find({ no_chdir => 1, wanted => sub {
         return unless -f $_;
@@ -406,6 +462,16 @@ sub write_readme {
         : $is_windows
             ? 'Requires OpenGL and XAudio2 2.9 on the system.'
             : 'Requires OpenGL and OpenAL (for example openal-soft) on the system.';
+    my $math_notice = $opt{'math-mode'} eq 'off'
+        ? 'Math mode: off. Gameplay uses plain .NET arithmetic without the legacy numeric library. Replays are not numerically compatible with legacy-math builds.'
+        : "Math mode: $opt{'math-mode'}. "
+            . ($opt{'math-mode'} eq 'software'
+                ? 'Gameplay is locked to the software legacy numeric backend.'
+                : 'Gameplay automatically selects the hardware x87 or software legacy numeric backend.')
+            . "\nGameplay uses a replaceable legacy numeric library containing LGPL and other\n"
+            . "licensed components. Notices, complete corresponding source and build instructions\n"
+            . "are in licenses/LegacyMath/source/NOTICE.md. You may replace the compatible library\n"
+            . "and reverse engineer as needed to debug modifications to that library.";
     write_file(File::Spec->catfile($stage, 'README.txt'), <<"TXT");
 TOUHOU Hisou Sousou / 东方夏夜祭 - cross-platform port
 
@@ -414,11 +480,7 @@ $req
 
 $platform_req
 
-Gameplay uses a replaceable legacy numeric library with hardware x87 and software
-backends, containing LGPL and other
-licensed components. Notices, complete corresponding source and build instructions
-are in licenses/LegacyMath/source/NOTICE.md. You may replace the compatible library
-and reverse engineer as needed to debug modifications to that library.
+$math_notice
 
 Settings live in Setting.INI next to this file. Saves (Score.dat), replays
 (Replay/) and screenshots (ScreenShot/) are created here on first use and are

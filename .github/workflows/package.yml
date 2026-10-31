@@ -21,11 +21,18 @@ on:
         description: Bundle the .NET runtime
         type: boolean
         default: true
+      math_mode:
+        description: Gameplay numeric mode
+        type: choice
+        options: [auto, software, off]
+        default: auto
 
 env:
   DOTNET_NOLOGO: "1"
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   THSSS_FRAMEWORK: ${{ inputs.framework || 'net8.0' }}
+  THSSS_MATH_MODE: ${{ inputs.math_mode || 'auto' }}
+  MATH_MODE_SUFFIX: ${{ inputs.math_mode && inputs.math_mode != 'auto' && format('-{0}', inputs.math_mode) || '' }}
 
 jobs:
   package:
@@ -51,6 +58,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify vendor checkout hashes
+        run: python tests/testcase/GameplayMath/check_vendor_checkout.py
 
       # Metal shaders are translated once on Linux and shipped inside every macOS
       # package, so end users never need glslangValidator or SPIRV-Cross.
@@ -92,14 +101,14 @@ jobs:
       - name: Package (framework-dependent)
         shell: bash
         run: |
-          perl tools/make-dist.pl --rid "${{ matrix.rid }}" --out "dist/${{ matrix.rid }}"
-          ls -1 "dist/${{ matrix.rid }}"
+          perl tools/make-dist.pl --rid "${{ matrix.rid }}" --math-mode "$THSSS_MATH_MODE" --out "dist/${{ matrix.rid }}$MATH_MODE_SUFFIX"
+          ls -1 "dist/${{ matrix.rid }}$MATH_MODE_SUFFIX"
 
       - name: Verify archive contents
         shell: bash
         run: |
           set -eu
-          pack="dist/${{ matrix.rid }}"
+          pack="dist/${{ matrix.rid }}$MATH_MODE_SUFFIX"
           # Player data must never be in a package: it would overwrite a user's saves.
           ! test -e "$pack/Score.dat"
           ! test -e "$pack/Score.dat.bak"
@@ -110,14 +119,7 @@ jobs:
           # Both executables ship together; Config looks for the game beside itself.
           test -e "$pack/THSSS.runtimeconfig.json"
           test -e "$pack/Config.runtimeconfig.json"
-          case '${{ matrix.rid }}' in
-            win-*) test -s "$pack/thsss_legacy_math.dll" ;;
-            osx-*) test -s "$pack/libthsss_legacy_math.dylib" ;;
-            linux-*) test -s "$pack/libthsss_legacy_math.so" ;;
-          esac
-          test -s "$pack/licenses/LegacyMath/source/NOTICE.md"
-          test -s "$pack/licenses/LegacyMath/source/build.py"
-          test -s "$pack/licenses/LegacyMath/source/software_x87.cpp"
+          python tests/testcase/MathModePackaging/check_archive.py "$pack" "$THSSS_MATH_MODE" "${{ matrix.rid }}"
           # Read-only asset roots the game opens at runtime.
           for asset in Image Model FX Sound Story BGM CS BPic; do
             test -d "$pack/$asset" || { echo "missing asset directory: $asset"; exit 1; }
@@ -128,14 +130,14 @@ jobs:
         shell: bash
         run: |
           set -eu
-          count=$(ls -1 "dist/${{ matrix.rid }}/MetalShaders"/*.msl 2>/dev/null | wc -l)
+          count=$(ls -1 "dist/${{ matrix.rid }}$MATH_MODE_SUFFIX/MetalShaders"/*.msl 2>/dev/null | wc -l)
           echo "packaged MSL files: $count"
           test "$count" -ge 8
 
       - uses: actions/upload-artifact@v4
         with:
-          name: thsss-${{ matrix.rid }}
-          path: dist/${{ matrix.rid }}
+          name: thsss-${{ matrix.rid }}${{ env.MATH_MODE_SUFFIX }}
+          path: dist/${{ matrix.rid }}${{ env.MATH_MODE_SUFFIX }}
           if-no-files-found: error
 
   wine:
@@ -151,6 +153,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify vendor checkout hashes
+        run: python tests/testcase/GameplayMath/check_vendor_checkout.py
       - name: Enable LLVM toolchain
         shell: pwsh
         run: |
@@ -170,15 +174,16 @@ jobs:
         run: |
           # Wine's bcrypt ships no DES provider, so a save cannot be encrypted there
           # without the managed implementation. Native Windows keeps using CNG.
-          perl tools/make-dist.pl --rid win-x64 --wine-compat --out dist/win-x64-wine
+          perl tools/make-dist.pl --rid win-x64 --wine-compat --math-mode "$THSSS_MATH_MODE" --out "dist/win-x64-wine$MATH_MODE_SUFFIX"
           # Prove the flag reached publish: the fallback type only exists in that build.
-          if ! grep -rqa "ManagedDes" dist/win-x64-wine/THSSS.dll; then
+          if ! grep -rqa "ManagedDes" "dist/win-x64-wine$MATH_MODE_SUFFIX/THSSS.dll"; then
             echo "managed DES fallback missing from the Wine package"; exit 1
           fi
+          python tests/testcase/MathModePackaging/check_archive.py "dist/win-x64-wine$MATH_MODE_SUFFIX" "$THSSS_MATH_MODE" win-x64
       - uses: actions/upload-artifact@v4
         with:
-          name: thsss-win-x64-wine
-          path: dist/win-x64-wine
+          name: thsss-win-x64-wine${{ env.MATH_MODE_SUFFIX }}
+          path: dist/win-x64-wine${{ env.MATH_MODE_SUFFIX }}
           if-no-files-found: error
 
   release:

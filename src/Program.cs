@@ -36,6 +36,10 @@ public static class Program
 
     private static void Run(string[] args)
     {
+#if !THSSS_MATH_OFF
+        // Resolve invalid overrides and missing native libraries before graphics or player-data writes.
+        _ = SlimDX.Compat.LegacyFloat.Backend;
+#endif
         // Story scripts, CSVs and setting files are GBK (codepage 936).
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 

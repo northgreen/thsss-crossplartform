@@ -17,6 +17,7 @@
 - 椭圆块内的方向加角度、距离加目标范围与三角函数结果保持扩展中间值；仅在原 IL 的显式转换、Math 参数及公有返回处落盘，不把 C# 的 double 局部声明当成存储边界。实际物理更新由窗口线程顺序执行；标量捕获不承诺任意并发位置写入与原计算间穿插时序等价
 - 移动块保留 `MovePoint` 分支、两次完整 `Position` getter、四次原坐标读取、六次边界偏移读取，以及最终 setter 的独立单精度落盘。原坐标加偏移再减偏移不能代数消除；块返回 `OriginalPosition`，不再重复调用 `Position` setter
 - `FromSingle/FromDouble` 使用逐位整数展开，精确保留符号、次正规数及旧 NaN quiet/payload 规则；`ToSingle/ToDouble` 只对已精确可表示的规范值走整数编码，所有舍入、非规范 ext80、NaN/无穷与越界都回退原 native codec。算术仍走选定 x87/软件后端，没有借机改成宿主浮点计算或忽略 GC 转换约束
+- 编译参数 `THSSSMathMode=auto|software|off` 决定是否包含兼容路径。默认 auto 保留自动后端及环境覆盖；software 固定软件实现并拒绝硬件环境覆盖；off 使用普通 .NET 原表达式与 Random 子类，既不织入也不包含数学 native 库及 LegacyFloat 类型，不接受旧 CLR 黄金或旧 Replay 一致性保证。三态不是运行时热切换，发布记录绑定最终 DLL 哈希
 
 执行生产回归（需要 .NET、Python 3 和 Clang/LLVM；源码构建还需要 Fody 包还原）：
 

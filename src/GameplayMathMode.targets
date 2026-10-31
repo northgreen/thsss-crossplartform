@@ -1,0 +1,68 @@
+<Project>
+  <PropertyGroup>
+    <THSSSMathMode Condition="'$(THSSSMathMode)' == ''">auto</THSSSMathMode>
+    <DefineConstants Condition="'$(THSSSMathMode)' == 'off'">$(DefineConstants);THSSS_MATH_OFF</DefineConstants>
+    <DefineConstants Condition="'$(THSSSMathMode)' == 'software'">$(DefineConstants);THSSS_MATH_SOFTWARE</DefineConstants>
+    <DisableFody Condition="'$(THSSSMathMode)' == 'off'">true</DisableFody>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="THSSSMathMode" Value="$(THSSSMathMode)" />
+  </ItemGroup>
+  <Target Name="ValidateGameplayMathMode" BeforeTargets="CollectPackageReferences;_GenerateRestoreGraph;PrepareForBuild;CoreCompile">
+    <Error Condition="!$([System.String]::Equals('$(THSSSMathMode)', 'auto')) and !$([System.String]::Equals('$(THSSSMathMode)', 'software')) and !$([System.String]::Equals('$(THSSSMathMode)', 'off'))"
+           Text="THSSSMathMode must be exactly auto, software or off (lowercase)." />
+  </Target>
+  <Target Name="ValidateDisabledGameplayMathAssets" BeforeTargets="ResolveReferences;CoreCompile;ComputeFilesToPublish"
+          Condition="'$(THSSSMathMode)' == 'off' and Exists('$(ProjectAssetsFile)')">
+    <!-- Disabling weaving cannot remove dependencies from a cached auto/software restore graph. -->
+    <PropertyGroup>
+      <_MathRestoreGraph>$([System.IO.File]::ReadAllText('$(ProjectAssetsFile)'))</_MathRestoreGraph>
+    </PropertyGroup>
+    <Error Condition="$([System.String]::Copy('$(_MathRestoreGraph)').Contains('&quot;Fody/')) or $([System.String]::Copy('$(_MathRestoreGraph)').Contains('&quot;FodyHelpers/')) or $([System.String]::Copy('$(_MathRestoreGraph)').Contains('&quot;GameplayMath.Fody/'))"
+           Text="THSSSMathMode=off requires a matching restore without Fody/weaver dependencies. Run dotnet restore with -p:THSSSMathMode=off before using --no-restore or --no-build." />
+  </Target>
+  <Target Name="PrepareGameplayMathMode" BeforeTargets="CoreCompile" DependsOnTargets="ValidateGameplayMathMode" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_MathModeStamp>$(IntermediateOutputPath)THSSS.math-mode</_MathModeStamp>
+      <_PreviousMathMode Condition="Exists('$(_MathModeStamp)')">$([System.IO.File]::ReadAllText('$(_MathModeStamp)').Trim())</_PreviousMathMode>
+    </PropertyGroup>
+    <!-- Recompile pristine IL on mode changes: Fody must never receive its own rewritten assembly. -->
+    <Delete Condition="'$(_PreviousMathMode)' != '$(THSSSMathMode)'"
+            Files="@(IntermediateAssembly);$(IntermediateOutputPath)$(MSBuildProjectFile).Fody.CopyLocal.cache;$(IntermediateOutputPath)$(MSBuildProjectFile).Fody.RuntimeCopyLocal.cache;$(IntermediateOutputPath)GameplayMath.manifest.json" />
+    <WriteLinesToFile File="$(_MathModeStamp)" Lines="$(THSSSMathMode)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <CustomAdditionalCompileInputs Include="$(_MathModeStamp)" />
+      <UpToDateCheckInput Include="$(_MathModeStamp)" />
+      <FileWrites Include="$(_MathModeStamp)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CleanDisabledGameplayMathOutput" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(THSSSMathMode)' == 'off'">
+    <Delete Files="$(TargetDir)libthsss_legacy_math.so;$(TargetDir)libthsss_legacy_math.dylib;$(TargetDir)thsss_legacy_math.dll;$(TargetDir)thsss_legacy_math.pdb;$(TargetDir)GameplayMath.manifest.json;$(TargetDir)GameplayMath.Fody.dll;$(TargetDir)GameplayMath.Fody.pdb;$(TargetDir)GameplayMath.Fody.deps.json" />
+  </Target>
+  <Target Name="WriteGameplayMathBuildRecord" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(TargetPath)')">
+    <GetFileHash Files="$(TargetPath)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_MathBuildHash" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(TargetDir)THSSS.math-mode.json" Lines="{&quot;mode&quot;:&quot;$(THSSSMathMode)&quot;,&quot;sha256&quot;:&quot;%(_MathBuildHash.FileHash)&quot;}" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+  <Target Name="WriteGameplayMathPublishRecord" AfterTargets="Publish" Condition="Exists('$(PublishDir)$(TargetFileName)')">
+    <!-- NoBuild must not relabel an assembly produced with another compile mode. -->
+    <ReadLinesFromFile File="$(TargetDir)THSSS.math-mode.json">
+      <Output TaskParameter="Lines" PropertyName="_MathPublishedBuildRecord" />
+    </ReadLinesFromFile>
+    <Error Condition="!$([System.String]::Copy('$(_MathPublishedBuildRecord)').Contains('&quot;mode&quot;:&quot;$(THSSSMathMode)&quot;'))" Text="Published THSSS.dll was built with another math mode; rebuild with THSSSMathMode=$(THSSSMathMode)." />
+    <GetFileHash Files="$(TargetPath)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_MathPublishSourceHash" />
+    </GetFileHash>
+    <PropertyGroup>
+      <_MathPublishSourceHashValue>@(_MathPublishSourceHash->'%(FileHash)')</_MathPublishSourceHashValue>
+    </PropertyGroup>
+    <Error Condition="!$([System.String]::Copy('$(_MathPublishedBuildRecord)').ToUpperInvariant().Contains('&quot;SHA256&quot;:&quot;$(_MathPublishSourceHashValue)&quot;'))"
+           Text="THSSS.dll SHA256 does not match its build math-mode record; rebuild before publishing. The existing record will not be re-signed." />
+    <Delete Condition="'$(THSSSMathMode)' == 'off'" Files="$(PublishDir)libthsss_legacy_math.so;$(PublishDir)libthsss_legacy_math.dylib;$(PublishDir)thsss_legacy_math.dll;$(PublishDir)thsss_legacy_math.pdb;$(PublishDir)GameplayMath.manifest.json;$(PublishDir)GameplayMath.Fody.dll;$(PublishDir)GameplayMath.Fody.pdb;$(PublishDir)GameplayMath.Fody.deps.json" />
+    <GetFileHash Files="$(PublishDir)$(TargetFileName)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_MathPublishHash" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(PublishDir)THSSS.math-mode.json" Lines="{&quot;mode&quot;:&quot;$(THSSSMathMode)&quot;,&quot;sha256&quot;:&quot;%(_MathPublishHash.FileHash)&quot;}" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+</Project>

@@ -233,7 +233,11 @@ public class Game_Main
 			}
 			DeviceMain = new SlimDX.Direct3D9.Device(direct3D, defaultAdapter.Adapter, SlimDX.Direct3D9.DeviceType.Hardware, ((Control)Form_Main).Handle, createFlags, GlobalData.presentParams);
 			// Match the original device's effect on game arithmetic without changing the host FPU or renderer.
+#if THSSS_MATH_OFF
+			Console.WriteLine("[MATH] mode=off backend=.NET");
+#else
 			SlimDX.Compat.LegacyFloat.InitializeGameplayThread();
+#endif
 			GlobalData.SpriteMain = new MySprite(DeviceMain);
 			return true;
 		}
