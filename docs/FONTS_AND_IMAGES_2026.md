@@ -24,7 +24,7 @@
 
 ## 配置程序与分发
 
-Avalonia 11 的配置程序使用 Skia 2.88.9 / HarfBuzz 8.3.1.1，与游戏的新原生库不能混放。打包结构为：
+Avalonia 11.3.22 的配置程序使用 Skia 2.88.9 / HarfBuzz 8.3.1.1，与游戏的新原生库不能混放。维护更新不能单独将配置程序的 Skia 换成游戏版本。打包结构为：
 
 ```text
 THSSS / THSSS.exe       游戏及其 Skia/HarfBuzz 库

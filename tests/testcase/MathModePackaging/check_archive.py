@@ -54,7 +54,7 @@ def check_config_isolation(package: Path, rid: str) -> None:
             raise ValueError(f'incorrect isolated SkiaSharp version: {directory}')
         if 'HarfBuzzSharp/' + harfbuzz not in libraries:
             raise ValueError(f'incorrect isolated HarfBuzzSharp version: {directory}')
-        if name == 'Config' and 'Avalonia/11.3.9' not in libraries:
+        if name == 'Config' and 'Avalonia/11.3.22' not in libraries:
             raise ValueError(f'missing Avalonia GUI dependency: {directory}')
         if name == 'Config' and 'Tmds.DBus.Protocol/0.21.3' not in libraries:
             raise ValueError(f'missing patched D-Bus dependency: {directory}')

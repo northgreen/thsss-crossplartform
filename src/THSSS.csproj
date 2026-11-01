@@ -54,8 +54,13 @@
     <!-- The regular Linux assets retain fontconfig; NoDependencies cannot resolve system fonts. -->
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="4.154.0" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="14.2.1.400" />
-    <PackageReference Include="System.Resources.Extensions" Version="10.0.13" />
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.13" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.14" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.14" />
+    <!-- Keep Silk's Microsoft dependencies on their patched, API-compatible 9.x line. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="9.0.22" />
+    <PackageReference Include="System.IO.Pipelines" Version="9.0.22" />
+    <PackageReference Include="System.Text.Json" Version="9.0.22" />
+    <PackageReference Include="System.Text.Encodings.Web" Version="9.0.22" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="../game/FX/**/*" Link="FX/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />

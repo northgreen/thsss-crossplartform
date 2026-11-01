@@ -30,7 +30,7 @@ def isolation_files(rid='linux-x64', framework='net8.0'):
                         for n in ('SkiaSharp', 'HarfBuzzSharp') ]
         libraries = {f'SkiaSharp/{version}': {}, 'HarfBuzzSharp/14.2.1.400' if name == 'THSSS' else 'HarfBuzzSharp/8.3.1.1': {}}
         if name == 'Config':
-            libraries['Avalonia/11.3.9'] = {}
+            libraries['Avalonia/11.3.22'] = {}
             libraries['Tmds.DBus.Protocol/0.21.3'] = {}
         files[directory + name + '.deps.json'] = json.dumps({'libraries': libraries, 'targets': {rid: {'native/1.0': {'native': {n: {} for n in native_names}}}}})
         for native in native_names:
@@ -271,7 +271,7 @@ class PackagingTests(unittest.TestCase):
         stage = self.stage('off')
         path = stage / 'ConfigApp/Config.deps.json'
         valid = path.read_text()
-        for library in ('SkiaSharp/2.88.9', 'HarfBuzzSharp/8.3.1.1', 'Avalonia/11.3.9'):
+        for library in ('SkiaSharp/2.88.9', 'HarfBuzzSharp/8.3.1.1', 'Avalonia/11.3.22'):
             deps = json.loads(valid)
             del deps['libraries'][library]
             path.write_text(json.dumps(deps))
