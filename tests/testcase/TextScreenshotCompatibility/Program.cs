@@ -2,8 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX;
 using SlimDX.Direct3D9;
 using Shooting;
@@ -27,49 +26,25 @@ void Check(bool condition, string description)
     if (!condition) throw new Exception(description);
 }
 
-// Reproduce deferred loading: a face can have readable name metadata but lack
-// a required outline table. Use an installed TTF only as a temporary fixture.
-byte[] missingLocaFont = null;
-foreach (var family in SixLabors.Fonts.SystemFonts.Families)
-{
-    var probe = family.CreateFont(12);
-    if (!probe.TryGetPath(out string sourcePath) || !sourcePath.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)) continue;
-    byte[] bytes = File.ReadAllBytes(sourcePath);
-    if (bytes.Length < 12 || System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes) != 0x00010000) continue;
-    int tables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(4));
-    for (int table = 0; table < tables; table++)
-    {
-        int offset = 12 + table * 16;
-        if (System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(offset)) != 0x6c6f6361) continue;
-        bytes[offset] = (byte)'x';
-        missingLocaFont = bytes;
-        break;
-    }
-    if (missingLocaFont != null) break;
-}
-Check(missingLocaFont != null, "Font regression fixture requires an installed TrueType face with a loca table");
+// Malformed native font input must not poison subsequent valid glyph rendering.
 string brokenFontPath = Path.Combine(Path.GetTempPath(), "thsss-font-" + Guid.NewGuid().ToString("N") + ".ttf");
-var originalError = Console.Error;
 try
 {
-    File.WriteAllBytes(brokenFontPath, missingLocaFont);
-    var collection = new SixLabors.Fonts.FontCollection();
-    var brokenFamily = collection.Add(brokenFontPath);
-    var validate = typeof(System.Drawing.Graphics).GetMethod("TryCreateReadableFont", BindingFlags.Static | BindingFlags.NonPublic)!;
-    object[] parameters = { brokenFamily, 12f, SixLabors.Fonts.FontStyle.Regular, null };
-    using var diagnostics = new StringWriter();
-    Console.SetError(diagnostics);
-    Check(!(bool)validate.Invoke(null, parameters)! && parameters[3] == null,
-        "A name-only face with missing loca is rejected before text layout");
-    string firstDiagnostic = diagnostics.ToString();
-    Check(firstDiagnostic.Contains(brokenFontPath) && firstDiagnostic.Contains("MissingFontTableException") && firstDiagnostic.Contains("loca"),
-        "Rejected font retains path and complete parser error");
-    Check(!(bool)validate.Invoke(null, parameters)! && diagnostics.ToString() == firstDiagnostic,
-        "Rejected face is cached without repeated parsing or repeated errors");
+    File.WriteAllBytes(brokenFontPath, "not a font\0truncated sfnt"u8.ToArray());
+    using var badFace = SKTypeface.FromFile(brokenFontPath);
+    Check(badFace == null, "Malformed native face is rejected without throwing");
+    string chineseFamily = SKFontManager.Default.FontFamilies.First(name =>
+    {
+        using var face = SKFontManager.Default.MatchFamily(name);
+        using var probe = new SKFont(face);
+        return probe.ContainsGlyph(0x590f);
+    });
+    using var validFace = SKFontManager.Default.MatchFamily(chineseFamily);
+    using var validFont = new SKFont(validFace, 24);
+    Check(validFont.ContainsGlyph(0x590f), "Real Chinese glyph coverage survives malformed font rejection");
 }
 finally
 {
-    Console.SetError(originalError);
     if (File.Exists(brokenFontPath)) File.Delete(brokenFontPath);
 }
 
@@ -251,10 +226,10 @@ void PaintBands(uint fbo)
 }
 // The CPU-side reference image uses top-down rows: y < 120 is blue, matching the GL scissor
 // band only after the flip a screenshot must apply.
-using var sourceImage = new Image<Rgba32>(256, 192);
+using var sourceImage = new SKBitmap(256, 192, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 for (int y = 0; y < 192; y++)
 for (int x = 0; x < 256; x++)
-    sourceImage[x, y] = y < 120 ? new Rgba32(0, 0, 255, 255) : new Rgba32(255, 0, 0, 255);
+    sourceImage.SetPixel(x, y, y < 120 ? new SKColor(0, 0, 255, 255) : new SKColor(255, 0, 0, 255));
 using var plainTexture = Texture.FromImage(device, sourceImage);
 using var plainSurface = plainTexture.GetSurfaceLevel(0);
 // A third FBO that is green at capture time: the screenshot must read the requested source,
@@ -308,13 +283,13 @@ try
         if (format == ImageFileFormat.Jpg) Check(bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff, "JPEG magic, not PNG at .jpg");
         if (format == ImageFileFormat.Png) Check(bytes.Take(8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}), "PNG magic");
         if (format == ImageFileFormat.Ppm) Check(bytes[0] == 'P' && (bytes[1] == '6' || bytes[1] == '3'), "PPM RGB magic");
-        using var saved = SixLabors.ImageSharp.Image.Load<Rgba32>(file);
-        var top = saved[128, 20]; var bottom = saved[128, 175];
+        using var saved = ScreenshotDecoder.Decode(file, format);
+        var top = saved.GetPixel(128, 20); var bottom = saved.GetPixel(128, 175);
         Check(saved.Width == 256 && saved.Height == 192, "Screenshot dimensions");
         // Orientation check: blue must be at the top row and red at the bottom, matching what
         // the player saw, not the flipped GL memory layout.
-        Check(top.B > 230 && top.R < 20 && top.G < 20, $"{source.FBO}/{format} source/top blue: {top}");
-        Check(bottom.R > 230 && bottom.B < 20 && bottom.G < 20, $"{source.FBO}/{format} source/bottom red: {bottom}");
+        Check(top.Blue > 230 && top.Red < 20 && top.Green < 20, $"{source.FBO}/{format} source/top blue: {top}");
+        Check(bottom.Red > 230 && bottom.Blue < 20 && bottom.Green < 20, $"{source.FBO}/{format} source/bottom red: {bottom}");
     }
     // An unsupported container must fail explicitly and leave no mislabelled file behind.
     try { Surface.ToFile(surface, Path.Combine(temp, "unsupported.dds"), ImageFileFormat.Dds); throw new Exception("DDS must reject explicitly"); }

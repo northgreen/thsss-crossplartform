@@ -2,8 +2,7 @@ using Shooting;
 using SlimDX;
 using SlimDX.Direct3D9;
 using THSSS.Graphics;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 internal static class ResizePixels
 {
@@ -14,10 +13,10 @@ internal static class ResizePixels
         device.SetRenderTarget(0,null);
         backend.SetScissor(false,0,0,width,height);
         device.Clear(ClearFlags.Target | ClearFlags.ZBuffer,System.Drawing.Color.Black,1,0);
-        using var image = new Image<Rgba32>(64,64);
+        using var image = new SKBitmap(64,64, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         for(int y=0;y<64;y++) for(int x=0;x<64;x++)
-            image[x,y] = y<32 ? (x<32 ? new(255,0,0,255) : new(0,255,0,255))
-                : (x<32 ? new(0,0,255,255) : new(255,255,255,255));
+            image.SetPixel(x,y, y<32 ? (x<32 ? new(255,0,0,255) : new(0,255,0,255))
+                : (x<32 ? new(0,0,255,255) : new(255,255,255,255)));
         using var texture = Texture.FromImage(device,image);
         using var sprite = new Sprite(device);
         device.SetSamplerState(0,SamplerState.MinFilter,TextureFilter.Point);

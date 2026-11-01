@@ -89,6 +89,7 @@ $out = File::Spec->rel2abs($out);
 my @required = (
     [ File::Spec->catfile($root, 'src', 'THSSS.csproj'), 'game project' ],
     [ File::Spec->catfile($root, 'src', 'Config', 'THSSS.Config.csproj'), 'config project' ],
+    [ File::Spec->catfile($root, 'src', 'ConfigLauncher', 'THSSS.ConfigLauncher.csproj'), 'config launcher project' ],
     [ File::Spec->catfile($root, 'game', 'Setting.INI'), 'default Setting.INI' ],
     [ File::Spec->catdir($root, 'game', 'Image'), 'game assets' ],
 );
@@ -100,6 +101,7 @@ for my $rid (@rids) {
     die "unsupported runtime: $rid\n" unless $rid =~ /^(?:linux|win|osx)-(?:x64|arm64)$/;
 }
 check_assets();
+my $skia_licenses = check_skia_licenses();
 if (grep { /^osx-/ } @rids) {
     for my $tool (qw(glslangValidator spirv-cross)) {
         die "missing build tool: $tool (macOS: brew install glslang spirv-cross)\n" unless which($tool);
@@ -139,6 +141,7 @@ for my $rid (@rids) {
 
     check_framework($stage);
     check_math_mode($stage);
+    copy_skia_licenses($stage, $skia_licenses);
     if ($opt{'math-mode'} eq 'off') {
         remove_math_output($stage);
     } else {
@@ -149,7 +152,7 @@ for my $rid (@rids) {
         # The exporter runs for the build host, even when publishing another RID.
         run('dotnet', 'run', '--project', File::Spec->catfile($root, 'tools', 'MetalShaderExporter', 'MetalShaderExporter.csproj'),
             '--framework', $host_framework, '-c', 'Release', '--', File::Spec->catdir($stage, 'MetalShaders'));
-        for my $executable (qw(THSSS Config)) {
+        for my $executable (qw(THSSS Config ConfigApp/Config)) {
             my $path = File::Spec->catfile($stage, $executable);
             die "missing macOS executable: $path\n" unless -f $path;
             chmod 0755, $path or die "cannot make executable: $path: $!\n";
@@ -216,7 +219,7 @@ sub default_framework {
 sub check_framework {
     my ($stage) = @_;
     # In particular, --skip-build must not label an existing net10.0 package as net8.0.
-    for my $name (qw(THSSS Config)) {
+    for my $name (qw(THSSS Config ConfigApp/Config)) {
         my $path = File::Spec->catfile($stage, "$name.runtimeconfig.json");
         open my $fh, '<', $path or die "cannot read published runtime configuration $path: $!\n";
         local $/;
@@ -238,11 +241,21 @@ sub publish {
         '--framework', $opt{framework},
         '-r', $rid,
         ($opt{'self-contained'} ? ('--self-contained', 'true') : ()),
+        '-o', File::Spec->catdir($stage, 'ConfigApp'),
+        '-p:WarningLevel=0',
+    );
+    # Keep Avalonia's native dependencies separate from the game's Skia/HarfBuzz.
+    # The BCL-only root launcher supplies the data root to ConfigWorkspace.
+    run(
+        'dotnet', 'publish',
+        File::Spec->catfile($root, 'src', 'ConfigLauncher', 'THSSS.ConfigLauncher.csproj'),
+        '-c', $opt{configuration},
+        '--framework', $opt{framework},
+        '-r', $rid,
+        ($opt{'self-contained'} ? ('--self-contained', 'true') : ()),
         '-o', $stage,
         '-p:WarningLevel=0',
     );
-    # The game publishes into the same directory so the two executables sit side by
-    # side, exactly where ConfigWorkspace looks for the game.
     run(
         'dotnet', 'publish',
         File::Spec->catfile($root, 'src', 'THSSS.csproj'),
@@ -405,6 +418,52 @@ sub copy_math_source {
     say '    LegacyMath: replaceable shared library and complete corresponding source/notices';
 }
 
+sub check_skia_licenses {
+    my $source = File::Spec->catdir($root, 'third_party', 'SkiaSharp');
+    my $inventory = File::Spec->catfile($source, 'license-inventory.json');
+    open my $fh, '<', $inventory or die "cannot read Skia license inventory $inventory: $!\n";
+    local $/;
+    my $entries = decode_json(<$fh>);
+    close $fh or die "cannot close $inventory: $!\n";
+    my %allowed = map { $_ => 1 } qw(
+        skiasharp-4.154.0/LICENSE.txt
+        skiasharp.nativeassets.linux-4.154.0/LICENSE.txt
+        skiasharp.nativeassets.linux-4.154.0/THIRD-PARTY-NOTICES.txt
+        harfbuzzsharp-14.2.1.400/LICENSE.txt
+        skiasharp-2.88.9/LICENSE.txt
+        skiasharp-2.88.9/THIRD-PARTY-NOTICES.txt
+        skiasharp.nativeassets.linux-2.88.9/LICENSE.txt
+        skiasharp.nativeassets.linux-2.88.9/THIRD-PARTY-NOTICES.txt
+        harfbuzzsharp-8.3.1.1/LICENSE.txt
+    );
+    die "invalid Skia license inventory\n" unless ref($entries) eq 'ARRAY' && @$entries == keys(%allowed);
+    for my $entry (@$entries) {
+        die "invalid Skia license entry\n" unless ref($entry) eq 'HASH';
+        my $relative = $entry->{file} // '';
+        my $hash = $entry->{sha256} // '';
+        die "unsafe or duplicate Skia license path: $relative\n" unless delete $allowed{$relative};
+        die "invalid Skia license SHA-256: $relative\n" unless $hash =~ /\A[0-9a-fA-F]{64}\z/;
+        my $path = File::Spec->catfile($source, split m{/}, $relative);
+        open my $license, '<', $path or die "cannot read Skia license $path: $!\n";
+        binmode $license;
+        my $sha = Digest::SHA->new(256)->addfile($license)->hexdigest;
+        close $license or die "cannot close $path: $!\n";
+        die "Skia license SHA-256 mismatch: $relative\n" unless $sha eq lc($hash);
+    }
+    return $entries;
+}
+
+sub copy_skia_licenses {
+    my ($stage, $entries) = @_;
+    my $source = File::Spec->catdir($root, 'third_party', 'SkiaSharp');
+    my $dest = File::Spec->catdir($stage, 'licenses', 'SkiaSharp');
+    for my $relative ('license-inventory.json', map { $_->{file} } @$entries) {
+        my $target = File::Spec->catfile($dest, split m{/}, $relative);
+        make_path(dirname($target));
+        copy_file(File::Spec->catfile($source, split m{/}, $relative), $target);
+    }
+}
+
 sub write_setting {
     my ($stage) = @_;
     my $src = File::Spec->catfile($root, 'game', 'Setting.INI');
@@ -420,7 +479,7 @@ sub write_launchers {
     my $config = $is_windows ? 'Config.exe' : 'Config';
 
     if ($is_windows) {
-        # Config.exe starts the game itself; a .bat mirrors that for the game alone.
+        # The root Config launcher forwards to the isolated ConfigApp GUI.
         write_file(File::Spec->catfile($stage, 'run-game.bat'),
             "\@echo off\r\ncd /d \"%~dp0\"\r\n\"$game\" %*\r\n");
         write_file(File::Spec->catfile($stage, 'run-config.bat'),
@@ -461,7 +520,7 @@ sub write_readme {
         ? 'Uses native Metal and AudioToolbox on macOS. Cached MSL shaders and the built-in Metal compiler require no external tools at runtime.'
         : $is_windows
             ? 'Requires OpenGL and XAudio2 2.9 on the system.'
-            : 'Requires OpenGL and OpenAL (for example openal-soft) on the system.';
+            : 'Requires OpenGL, OpenAL (for example openal-soft), and libfontconfig.so.1 on the system. Uses SkiaSharp.NativeAssets.Linux, not NoDependencies.';
     my $math_notice = $opt{'math-mode'} eq 'off'
         ? 'Math mode: off. Gameplay uses plain .NET arithmetic without the legacy numeric library. Replays are not numerically compatible with legacy-math builds.'
         : "Math mode: $opt{'math-mode'}. "
@@ -476,6 +535,9 @@ sub write_readme {
 TOUHOU Hisou Sousou / 东方夏夜祭 - cross-platform port
 
 $how
+ConfigApp/ contains the configuration GUI and its isolated native dependencies.
+Keep it beside the root Config launcher; do not merge its files into this directory.
+SkiaSharp/HarfBuzz licenses and third-party notices are in licenses/SkiaSharp/.
 $req
 
 $platform_req

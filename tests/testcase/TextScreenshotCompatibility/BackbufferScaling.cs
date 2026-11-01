@@ -1,7 +1,6 @@
 using Silk.NET.OpenGL;
 using SlimDX.Direct3D9;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 internal static class BackbufferScaling
 {
@@ -23,8 +22,8 @@ internal static class BackbufferScaling
             using var back=device.GetBackBuffer(0,0);
             string path=Path.Combine(directory,"scaled-logical-backbuffer.png");
             Surface.ToFile(back,path,ImageFileFormat.Png);
-            using var image=SixLabors.ImageSharp.Image.Load<Rgba32>(path);
-            if(image.Width!=128||image.Height!=64||image[64,8].B<240||image[64,56].R<240||image[64,8].G>10)
+            using var image=SKBitmap.Decode(path) ?? throw new InvalidDataException("Cannot decode screenshot: " + path);
+            if(image.Width!=128||image.Height!=64||image.GetPixel(64,8).Blue<240||image.GetPixel(64,56).Red<240||image.GetPixel(64,8).Green>10)
                 throw new Exception("Physical framebuffer screenshot must exclude letterbox and retain original logical dimensions/direction");
         }
         finally

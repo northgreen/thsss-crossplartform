@@ -1,7 +1,6 @@
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX;
 using SlimDX.Direct3D9;
 using Texture = SlimDX.Direct3D9.Texture;
@@ -19,9 +18,9 @@ internal static class SpriteIntegrationChecks
         using var window=Window.Create(options); window.Initialize();
         using var gl=window.CreateOpenGL();
         using var device=new Device(gl,width,height){GameWidth=width,GameHeight=height};
-        using var image=new Image<Rgba32>(width,height);
+        using var image=new SKBitmap(width,height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         for(int y=0;y<height;y++) for(int x=0;x<width;x++)
-            image[x,y]=new Rgba32((byte)(60+x),(byte)(80+y),(byte)(70+x/2+y/2),255);
+            image.SetPixel(x,y,new SKColor((byte)(60+x),(byte)(80+y),(byte)(70+x/2+y/2),255));
         using var uploaded=Texture.FromImage(device,image);
         using var scene=new Texture(device,width,height,1,Usage.RenderTarget,Format.A8R8G8B8,Pool.Managed);
         using var sceneSurface=scene.GetSurfaceLevel(0);

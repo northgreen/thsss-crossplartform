@@ -1,8 +1,7 @@
 using System.Reflection;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX;
 using SlimDX.Direct3D9;
 using Vector2 = System.Numerics.Vector2;
@@ -22,10 +21,10 @@ internal static class GpuChecks
         using var gl = window.CreateOpenGL();
         var device = new Device(gl, Width, Height);
         Console.WriteLine($"GPU: {gl.GetStringS(StringName.Renderer)} / {gl.GetStringS(StringName.Version)}");
-        using var image = new Image<Rgba32>(17, 13);
+        using var image = new SKBitmap(17, 13, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         for (int y = 0; y < image.Height; y++)
         for (int x = 0; x < image.Width; x++)
-            image[x,y] = new Rgba32((byte)(95+x*7), (byte)(105+y*8), (byte)(100+(x+y)*4), (byte)(160+(x+y)*2));
+            image.SetPixel(x,y, new SKColor((byte)(95+x*7), (byte)(105+y*8), (byte)(100+(x+y)*4), (byte)(160+(x+y)*2)));
         using var texture = Texture.FromImage(device, image);
         uint target = gl.GenTexture(); gl.BindTexture(TextureTarget.Texture2D, target);
         gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba32f, Width, Height, 0, Silk.NET.OpenGL.PixelFormat.Rgba, PixelType.Float, null);

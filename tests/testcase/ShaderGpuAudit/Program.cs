@@ -1,7 +1,6 @@
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX;
 using SlimDX.Direct3D9;
 using Texture = SlimDX.Direct3D9.Texture;
@@ -23,8 +22,8 @@ byte[] Pixel(int x,int y)
     unsafe { fixed(byte* p=pixel) gl.ReadPixels(x,y,1,1,Silk.NET.OpenGL.PixelFormat.Rgba,PixelType.UnsignedByte,p); }
     return pixel;
 }
-using var image = new Image<Rgba32>(16,16);
-for(int y=0;y<16;y++) for(int x=0;x<16;x++) image[x,y]=new Rgba32(255,0,0,128);
+using var image = new SKBitmap(16,16, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+for(int y=0;y<16;y++) for(int x=0;x<16;x++) image.SetPixel(x,y,new SKColor(255,0,0,128));
 using var translucent=Texture.FromImage(device,image);
 using var sprite=new Sprite(device);
 device.Clear(ClearFlags.Target,System.Drawing.Color.Blue,1,0);
@@ -38,8 +37,8 @@ sprite.End();
 var first=Pixel(8,56); var second=Pixel(40,56);
 Assert(first.SequenceEqual(second),$"additive blend persists across Flush: first={string.Join(',',first)} second={string.Join(',',second)}");
 
-using var whiteImage=new Image<Rgba32>(1,1);
-whiteImage[0,0]=new Rgba32(255,255,255,255);
+using var whiteImage=new SKBitmap(1,1, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+whiteImage.SetPixel(0,0,new SKColor(255,255,255,255));
 using var white=Texture.FromImage(device,whiteImage);
 using var vertices=new VertexBuffer(device,60,Usage.WriteOnly,VertexFormat.None,Pool.Managed);
 device.SetTexture(0,white);
@@ -150,8 +149,8 @@ device.SetRenderTarget(0,surface);
 device.SetRenderState(RenderState.AlphaBlendEnable,false);
 device.SetRenderState(RenderState.Lighting,false);
 device.Material=new Material{Diffuse=new D3DColor(1f,1f,1f,1f)};
-using var bands=new Image<Rgba32>(2,1);
-bands[0,0]=new Rgba32(255,0,0,255); bands[1,0]=new Rgba32(0,255,0,255);
+using var bands=new SKBitmap(2,1, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+bands.SetPixel(0,0,new SKColor(255,0,0,255)); bands.SetPixel(1,0,new SKColor(0,255,0,255));
 using var bandTexture=Texture.FromImage(device,bands);
 device.SetTexture(0,bandTexture);
 device.SetStreamSource(0,vertices,0,20);
@@ -210,8 +209,8 @@ device.SetStreamSource(0,normals,0,32);
 device.SetFVF(VertexFormat.Position|VertexFormat.Normal|VertexFormat.Texture1);
 device.SetRenderState(RenderState.Lighting,true);
 device.SetRenderState(RenderState.LocalViewer,false);
-using var blackImage=new Image<Rgba32>(1,1);
-blackImage[0,0]=new Rgba32(0,0,0,255);
+using var blackImage=new SKBitmap(1,1, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+blackImage.SetPixel(0,0,new SKColor(0,0,0,255));
 using var blackTexture=Texture.FromImage(device,blackImage);
 device.SetTexture(0,blackTexture);
 device.Material=new Material{Diffuse=new D3DColor(0f,0f,0f,1f),Specular=new D3DColor(0f,0f,1f,1f),Power=16};

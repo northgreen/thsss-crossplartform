@@ -303,9 +303,9 @@ public static class Program
         var flipped = new byte[pixels.Length];
         for (int row = 0; row < height; row++)
             System.Buffer.BlockCopy(pixels, (height - 1 - row) * stride, flipped, row * stride, stride);
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(flipped, width, height);
+        using var image = THSSS.Imaging.RasterCodec.FromPixels(flipped, width, height);
         using var stream = File.Create(path);
-        image.Save(stream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+        THSSS.Imaging.RasterCodec.Encode(image, stream, THSSS.Imaging.RasterFormat.Png);
         Console.WriteLine($"[SHOT] {path} {width}x{height} nonBlack={nonBlack}/{width * height}");
     }
 }

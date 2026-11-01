@@ -5,8 +5,8 @@ using System;
 using System.Drawing;
 using System.IO;
 using Silk.NET.OpenGL;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using THSSS.Imaging;
 using THSSS.Graphics;
 
 namespace SlimDX.Direct3D9;
@@ -69,27 +69,33 @@ public unsafe class Texture : IDisposable
     public static Texture FromFile(Device device, string fileName)
     {
         fileName = AssetPath.Resolve(fileName);
-        using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(fileName);
+        using var image = RasterCodec.Decode(fileName);
         return FromImage(device, image);
     }
 
     public static Texture FromStream(Device device, Stream stream, int width, int height)
     {
-        using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(stream);
+        using var image = RasterCodec.Decode(stream);
         return FromImage(device, image);
     }
 
-    public static Texture FromImage(Device device, Image<Rgba32> image)
+    public static Texture FromImage(Device device, SKBitmap image)
     {
-        var tex = new Texture(device, image.Width, image.Height, 1, Usage.None, Format.A8R8G8B8, Pool.Managed);
-
         // Atlas UVs address source row zero at v=0: upload rows in source order and let
         // the sprite projection handle screen-space Y.
+        var pixels = RasterCodec.CopyPixels(image);
         int width = image.Width, height = image.Height;
-        var pixels = new byte[width * height * 4];
-        image.CopyPixelDataTo(pixels);
-        tex._texture.Upload(pixels, width * 4);
-        return tex;
+        var tex = new Texture(device, width, height, 1, Usage.None, Format.A8R8G8B8, Pool.Managed);
+        try
+        {
+            tex._texture.Upload(pixels, width * 4);
+            return tex;
+        }
+        catch
+        {
+            tex.Dispose();
+            throw;
+        }
     }
 
     public static Texture FromFile(Device device, string fileName, int width, int height, int mipLevels, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)

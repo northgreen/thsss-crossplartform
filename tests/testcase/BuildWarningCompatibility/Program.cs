@@ -31,6 +31,7 @@ internal static class Program
         Check(callbacks == 0, "Placeholder events fired during subscription, property changes, or disposal");
         CheckDispatch();
         CheckAssemblyBoundaries();
+        ShortReadChecks.Run();
     }
 
     private static void CheckAssemblyBoundaries()

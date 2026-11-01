@@ -14,3 +14,8 @@ game/**/*.rpy filter=lfs diff=lfs merge=lfs -text
 # Frozen vendor sources and licenses are verified byte-for-byte by build.py.
 # Never rewrite their line endings during Windows checkout or Git add.
 native/LegacyMath/vendor/** -text
+# NuGet license hashes must also survive Windows autocrlf checkout unchanged.
+third_party/SkiaSharp/** -text
+# Upstream notices retain their original CRLF and trailing spaces verbatim.
+third_party/SkiaSharp/**/LICENSE.txt -whitespace
+third_party/SkiaSharp/**/THIRD-PARTY-NOTICES.txt -whitespace

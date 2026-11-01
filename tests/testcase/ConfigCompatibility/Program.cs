@@ -108,6 +108,18 @@ try
     File.WriteAllText(fake, string.Empty);
     Check(workspace.FindGameExecutable() == fake, "game executable discovered next to data root");
 
+    string package = Path.Combine(root, "package");
+    string configApp = Path.Combine(package, "ConfigApp");
+    string externalData = Path.Combine(root, "external player data");
+    Directory.CreateDirectory(configApp);
+    Directory.CreateDirectory(externalData);
+    string packagedGame = Path.Combine(package, "THSSS.exe");
+    File.WriteAllText(packagedGame, string.Empty);
+    var isolated = new ConfigWorkspace(externalData, configApp);
+    Check(isolated.FindGameExecutable() == packagedGame, "ConfigApp finds the package game with an external data root");
+    File.WriteAllText(Path.Combine(externalData, "THSSS.exe"), string.Empty);
+    Check(isolated.FindGameExecutable() == Path.Combine(externalData, "THSSS.exe"), "External data root retains the existing explicit game lookup priority");
+
     // The window is created from the same settings object, so this verifies that a
     // saved file is what the dialog would open with (real UI apply is exercised
     // manually and by the Xvfb smoke run of the executable).

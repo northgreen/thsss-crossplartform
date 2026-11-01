@@ -29,8 +29,11 @@
   <ItemGroup>
     <PackageReference Include="Fody" Version="[6.9.3]" PrivateAssets="all" Condition="'$(THSSSMathMode)' != 'off'" />
     <Compile Remove="Config/**/*.cs" />
+    <Compile Remove="ConfigLauncher/**/*.cs" />
     <None Remove="Config/**" />
+    <None Remove="ConfigLauncher/**" />
     <EmbeddedResource Remove="Config/**" />
+    <EmbeddedResource Remove="ConfigLauncher/**" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Shooting/RenderForm_Main.resx"><LogicalName>Shooting.RenderForm_Main.resources</LogicalName></EmbeddedResource>
@@ -46,8 +49,11 @@
     <PackageReference Include="Silk.NET.OpenAL" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Vulkan" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.23.0" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+    <PackageReference Include="SkiaSharp" Version="4.154.0" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" Version="4.154.0" />
+    <!-- The regular Linux assets retain fontconfig; NoDependencies cannot resolve system fonts. -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="4.154.0" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="14.2.1.400" />
     <PackageReference Include="System.Resources.Extensions" Version="10.0.13" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.13" />
   </ItemGroup>

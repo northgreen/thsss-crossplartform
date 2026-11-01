@@ -1,16 +1,15 @@
 using System.Numerics;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 internal static class Reference
 {
-    internal static Vector4 Filter(Image<Rgba32> image, Vector2 uv) => Sample(image, uv);
-    internal static Vector4 Blur(Image<Rgba32> image, Vector2 uv, float level)
+    internal static Vector4 Filter(SKBitmap image, Vector2 uv) => Sample(image, uv);
+    internal static Vector4 Blur(SKBitmap image, Vector2 uv, float level)
     {
         var color = (Sample(image, uv) + Sample(image, uv + new Vector2(level)) + Sample(image, uv - new Vector2(level))) / 3f;
         return color - new Vector4(level * 50, level * 50, level * 50, 0);
     }
-    internal static Vector4 Warp(Image<Rgba32> image, Vector2 uv, float x, float y, float time, float radius, int key)
+    internal static Vector4 Warp(SKBitmap image, Vector2 uv, float x, float y, float time, float radius, int key)
     {
         float destX = uv.X, destY = uv.Y;
         float dx = 0, dy = 0, dist2 = 0;
@@ -42,12 +41,16 @@ internal static class Reference
         }
         return color;
     }
-    internal static Vector4 Sample(Image<Rgba32> image, Vector2 uv)
+    internal static Vector4 Sample(SKBitmap image, Vector2 uv)
     {
         float px = uv.X * image.Width - 0.5f, py = uv.Y * image.Height - 0.5f;
         int x = (int)MathF.Floor(px), y = (int)MathF.Floor(py);
         float fx = px - x, fy = py - y;
-        Vector4 Pixel(int ix, int iy) => image[Mirror(ix, image.Width), Mirror(iy, image.Height)].ToVector4();
+        Vector4 Pixel(int ix, int iy)
+        {
+            var pixel = image.GetPixel(Mirror(ix, image.Width), Mirror(iy, image.Height));
+            return new Vector4(pixel.Red, pixel.Green, pixel.Blue, pixel.Alpha) / 255f;
+        }
         return Vector4.Lerp(Vector4.Lerp(Pixel(x, y), Pixel(x + 1, y), fx),
             Vector4.Lerp(Pixel(x, y + 1), Pixel(x + 1, y + 1), fx), fy);
     }

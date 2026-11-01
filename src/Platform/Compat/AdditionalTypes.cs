@@ -246,23 +246,22 @@ namespace System.Drawing
 
         public Bitmap(string filename)
         {
-            using var image = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Bgra32>(filename);
+            using var image = THSSS.Imaging.RasterCodec.Decode(filename, SkiaSharp.SKColorType.Bgra8888);
             Load(image);
         }
 
         public Bitmap(Stream stream)
         {
-            using var image = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Bgra32>(stream);
+            using var image = THSSS.Imaging.RasterCodec.Decode(stream, SkiaSharp.SKColorType.Bgra8888);
             Load(image);
         }
 
-        private void Load(SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Bgra32> image)
+        private void Load(SkiaSharp.SKBitmap image)
         {
             Width = image.Width;
             Height = image.Height;
             PixelFormat = Imaging.PixelFormat.Format32bppArgb;
-            Pixels = new byte[Width * Height * 4];
-            image.CopyPixelDataTo(Pixels);
+            Pixels = THSSS.Imaging.RasterCodec.CopyPixels(image, SkiaSharp.SKColorType.Bgra8888);
         }
 
         public void SetResolution(float xDpi, float yDpi) { }
@@ -311,7 +310,7 @@ namespace System.Drawing
         }
     }
 
-    // Graphics lives in GraphicsText.cs (real ImageSharp text rasteriser).
+    // Graphics lives in GraphicsText.cs (Skia text and shape rasterisation).
 
     public class StringFormat : IDisposable
     {

@@ -4,7 +4,7 @@ using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 using SlimDX.Direct3D9;
 using Shooting;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 internal static class ScreenshotTiming
 {
@@ -29,9 +29,9 @@ internal static class ScreenshotTiming
             typeof(Game_Main).GetMethod("CapturePendingScreenshot",flags)!.Invoke(game,null);
             var files=Directory.GetFiles("ScreenShot","*.jpg");
             if(files.Length!=1)throw new Exception("Screenshot request must execute exactly once");
-            using var image=SixLabors.ImageSharp.Image.Load<Rgba32>(files[0]);
-            var pixel=image[image.Width/2,image.Height/2];
-            if(pixel.B<230||pixel.R>20||pixel.G>20)throw new Exception("P screenshot did not capture the newly rendered blue frame after previous green swap");
+            using var image=SKBitmap.Decode(files[0]) ?? throw new InvalidDataException("Cannot decode screenshot: " + files[0]);
+            var pixel=image.GetPixel(image.Width/2,image.Height/2);
+            if(pixel.Blue<230||pixel.Red>20||pixel.Green>20)throw new Exception("P screenshot did not capture the newly rendered blue frame after previous green swap");
         }
         finally { Directory.SetCurrentDirectory(cwd); }
         Console.WriteLine("PASS: actual P request after swap is deferred and captures newly rendered frame exactly once");

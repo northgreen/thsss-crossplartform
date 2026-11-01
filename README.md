@@ -10,6 +10,8 @@ sh tools/run-game.sh
 
 支持 .NET 8 和 .NET 10；macOS 默认使用系统 Metal / AudioToolbox，Windows 使用 OpenGL / XAudio2，Linux 使用 OpenGL / OpenAL。启动脚本自动使用 `game/` 的资源、配置与存档；不必再手工设置工作目录。
 
+Linux 需要 `libfontconfig.so.1` 和可用的中文字体（例如 Noto CJK）。游戏通过 Skia 的系统字体管理器遵循 fontconfig 的字体别名与缺字回退；图像和文字组件使用开源 SkiaSharp/HarfBuzz，不需要 SixLabors 许可密钥。
+
 SDK 统一由根目录 `global.json` 选择：最低 .NET 8，优先使用已安装的最新正式 SDK。游戏、Config、着色器导出器及回归项目共用 `TargetFrameworks.props`；SDK 8 只构建 `net8.0`，SDK 10 同时提供 `net8.0` / `net10.0`。启动及回归脚本在 SDK 10 下默认选择 `net10.0`，SDK 8 下默认选择 `net8.0`，可用 `THSSS_FRAMEWORK=net8.0 sh tools/run-game.sh` 显式选择。本地运行需要对应版本的运行时，SDK 10 本身不等于安装了运行时 8；自包含发布包会携带所选运行时。
 
 ## 配置
@@ -57,10 +59,13 @@ sh tools/package-macos.command --framework net10.0 --out dist/thsss-net10
 dotnet build src/THSSS.csproj -f net8.0
 dotnet build src/Config/THSSS.Config.csproj -f net8.0
 dotnet publish src/THSSS.csproj -f net8.0 -c Release -o artifacts/publish
-dotnet publish src/Config/THSSS.Config.csproj -f net8.0 -c Release -o artifacts/publish
+dotnet publish src/Config/THSSS.Config.csproj -f net8.0 -c Release -o artifacts/publish/ConfigApp
+dotnet publish src/ConfigLauncher/THSSS.ConfigLauncher.csproj -f net8.0 -c Release -o artifacts/publish
 ```
 
 SDK 10 下将 `-f net8.0` 换为 `-f net10.0` 即可构建另一版本；直接 `dotnet build` 会构建当前 SDK 支持的所有目标。发布版会附带只读资源和 `game/Setting.INI` 中的当前配置，运行后在自己的目录创建存档/录像；**不会把 `game/Score.dat` 或你的录像打进发布包**。已有玩家数据只需保留在 `game/`，不要拿测试数据覆盖。
+
+完整分发使用 `perl tools/make-dist.pl --rid linux-x64 --framework net8.0`（按平台替换 RID）。包根的 `Config`／`Config.exe` 是启动入口，实际配置界面及其依赖位于 `ConfigApp/`；请保留整个目录，避免配置界面与游戏的不同 Skia 版本互相覆盖。打包工具还会附带对应的第三方许可证。
 
 ### 数学兼容构建模式
 

@@ -1,7 +1,6 @@
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX;
 using SlimDX.Direct3D9;
 using NVector3 = System.Numerics.Vector3;
@@ -141,8 +140,8 @@ device.SetRenderState(RenderState.AlphaBlendEnable,false);
 device.SetTransform(TransformState.World,Matrix.Identity);
 device.SetTransform(TransformState.View,Matrix.Identity);
 device.SetTransform(TransformState.Projection,Matrix.Identity);
-using var whiteImage=new Image<Rgba32>(1,1);
-whiteImage[0,0]=new Rgba32(255,255,255,255);
+using var whiteImage=new SKBitmap(1,1, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+whiteImage.SetPixel(0,0,new SKColor(255,255,255,255));
 using var white=Texture.FromImage(device,whiteImage);
 device.SetTexture(0,white);
 byte[] Pixels()

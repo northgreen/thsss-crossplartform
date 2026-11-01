@@ -216,13 +216,11 @@ namespace SlimDX.Direct3D9
                 (italic ? System.Drawing.FontStyle.Italic : System.Drawing.FontStyle.Regular),
                 System.Drawing.GraphicsUnit.Pixel)) { }
 
-        private SixLabors.ImageSharp.Drawing.Processing.RichTextOptions Layout(DrawTextFormat flags, int width)
+        private System.Drawing.SkiaTextLayout Layout(string text, DrawTextFormat flags, int width)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            var options = System.Drawing.Graphics.CreateTextOptions(_font);
-            if ((flags & DrawTextFormat.WordBreak) != 0 && (flags & DrawTextFormat.SingleLine) == 0 && width > 0)
-                options.WrappingLength = width;
-            return options;
+            return new System.Drawing.SkiaTextLayout(FormatText(text, flags), _font,
+                (flags & DrawTextFormat.WordBreak) != 0 && (flags & DrawTextFormat.SingleLine) == 0 ? width : 0);
         }
 
         private static string FormatText(string text, DrawTextFormat flags)
@@ -231,10 +229,8 @@ namespace SlimDX.Direct3D9
 
         private System.Drawing.Size Measure(string text, DrawTextFormat flags, int width)
         {
-            var options = Layout(flags, width);
-            if (string.IsNullOrEmpty(text)) return System.Drawing.Size.Empty;
-            var size = SixLabors.Fonts.TextMeasurer.MeasureSize(FormatText(text, flags), options);
-            return new System.Drawing.Size((int)Math.Ceiling(size.Width), (int)Math.Ceiling(size.Height));
+            using var layout = Layout(text, flags, width);
+            return layout.Size;
         }
 
         public System.Drawing.Size MeasureString(string text) => Measure(text, 0, 0);
@@ -256,8 +252,8 @@ namespace SlimDX.Direct3D9
                 DrawCached(sprite, rect);
                 return;
             }
-            var options = Layout(flags, rect.Width);
-            var size = Measure(text, flags, rect.Width);
+            using var layout = Layout(text, flags, rect.Width);
+            var size = layout.Size;
             float x = (flags & DrawTextFormat.Right) != 0 ? rect.Width - size.Width :
                 (flags & DrawTextFormat.Center) != 0 ? (rect.Width - size.Width) / 2f : 0;
             float y = (flags & DrawTextFormat.Bottom) != 0 ? rect.Height - size.Height :
@@ -266,13 +262,20 @@ namespace SlimDX.Direct3D9
             int width = clip ? rect.Width : size.Width;
             int height = clip ? rect.Height : size.Height;
             if (width <= 0 || height <= 0) return;
-            options.Origin = new SixLabors.ImageSharp.PointF(clip ? x : 0, clip ? y : 0);
-            using var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(width, height);
-            SixLabors.ImageSharp.Processing.ProcessingExtensions.Mutate(image, ctx =>
-                SixLabors.ImageSharp.Drawing.Processing.DrawTextExtensions.DrawText(ctx, options, text,
-                    SixLabors.ImageSharp.Color.FromRgba((byte)color.R, (byte)color.G, (byte)color.B, (byte)color.A)));
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(width, height,
+                SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul))
+                ?? throw new InvalidOperationException("Unable to allocate the glyph raster surface.");
+            surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+            var alignment = (flags & DrawTextFormat.Right) != 0 ? System.Drawing.StringAlignment.Far :
+                (flags & DrawTextFormat.Center) != 0 ? System.Drawing.StringAlignment.Center : System.Drawing.StringAlignment.Near;
+            layout.Draw(surface.Canvas, System.Drawing.Graphics.ToSkia(color), 0, clip ? y : 0,
+                clip ? rect.Width : size.Width, alignment);
+            using var snapshot = surface.Snapshot();
+            using var image = SkiaSharp.SKBitmap.FromImage(snapshot);
+            // The upload boundary converts premultiplied Skia pixels to straight RGBA.
+            var replacement = Texture.FromImage(_device, image);
             _cachedGlyphs?.Dispose();
-            _cachedGlyphs = Texture.FromImage(_device, image);
+            _cachedGlyphs = replacement;
             _glyphKey = (text, rect.Width, rect.Height, flags, color.ToArgb());
             _glyphX = clip ? 0 : x;
             _glyphY = clip ? 0 : y;

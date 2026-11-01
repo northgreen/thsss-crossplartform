@@ -1,7 +1,6 @@
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX.Direct3D9;
 using Texture=SlimDX.Direct3D9.Texture;
 
@@ -24,12 +23,12 @@ internal static class GpuParityProbes
         string file=Path.Combine(temp,"original-request-jpeg.jpg");
         Surface.ToFile(surface,file,ImageFileFormat.Jpg);
         byte[] bytes=File.ReadAllBytes(file);
-        using var output=SixLabors.ImageSharp.Image.Load<Rgba32>(file);
+        using var output=SKBitmap.Decode(file) ?? throw new InvalidDataException("Cannot decode screenshot: " + file);
         int count=0;
         if(bytes[0]==137&&bytes[1]==80&&bytes[2]==78&&bytes[3]==71)
         { count++; Console.WriteLine("CONFIRMED: in-game JPEG screenshot API writes PNG bytes under .jpg name"); }
         else Console.WriteLine("NOT REPRODUCED: screenshot file-type mismatch");
-        if(output[4,4].R>240&&output[4,60].B>240)
+        if(output.GetPixel(4,4).Red>240&&output.GetPixel(4,60).Blue>240)
         { count++; Console.WriteLine("CONFIRMED: in-game screenshot rows upside down (screen top-blue becomes image bottom-blue)"); }
         else Console.WriteLine("NOT REPRODUCED: screenshot Y inversion");
         device.SetRenderTarget(0,null);

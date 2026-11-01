@@ -3,8 +3,7 @@ using SlimDX;
 using SlimDX.Direct3D9;
 using THSSS.Graphics;
 using THSSS.Graphics.Vulkan;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 internal static class SpriteChecks
 {
@@ -16,7 +15,8 @@ internal static class SpriteChecks
         using var framebuffer = backend.CreateFramebuffer(output, DepthFormat.None, 8, 8);
         backend.BindFramebuffer(framebuffer);
         backend.Clear(ClearMask.Color, 0, 0, 1, 1, 1, 0);
-        using var image = new Image<Rgba32>(8, 8, new Rgba32(255, 0, 0, 255));
+        using var image = new SKBitmap(8, 8, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        image.Erase(new SKColor(255, 0, 0, 255));
         using var texture = Texture.FromImage(device, image);
         using var sprite = new Sprite(device);
         sprite.Begin(SpriteFlags.AlphaBlend);
@@ -26,7 +26,8 @@ internal static class SpriteChecks
         if (pixel[0] < 240 || pixel[1] > 15 || pixel[2] > 15)
             throw new Exception("Actual Sprite shader + uploaded red image must draw red, not constant-blue clear: " + string.Join(',', pixel));
         Console.WriteLine("PASS: actual Sprite/UBO/texture/batch pipeline renders uploaded red image");
-        using var transparentImage = new Image<Rgba32>(8, 8, new Rgba32(0, 255, 0, 0));
+        using var transparentImage = new SKBitmap(8, 8, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        transparentImage.Erase(new SKColor(0, 255, 0, 0));
         using var transparent = Texture.FromImage(device, transparentImage);
         sprite.Begin(SpriteFlags.AlphaBlend);
         sprite.Draw(transparent, Vector3.Zero, Vector3.Zero, new Color4(1, 1, 1, 1));
@@ -35,9 +36,9 @@ internal static class SpriteChecks
         if (blended[0] < 240 || blended[1] > 15)
             throw new Exception("Transparent Sprite must preserve opaque background (Vulkan SetRenderState must not be skipped): " + string.Join(',', blended));
         Console.WriteLine("PASS: Vulkan Sprite alpha blend preserves background under transparent overlay");
-        using var filterImage = new Image<Rgba32>(2,1);
-        filterImage[0,0] = new Rgba32(255,0,0,255);
-        filterImage[1,0] = new Rgba32(0,0,255,255);
+        using var filterImage = new SKBitmap(2,1, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        filterImage.SetPixel(0,0, new SKColor(255,0,0,255));
+        filterImage.SetPixel(1,0, new SKColor(0,0,255,255));
         using var filterTexture = Texture.FromImage(device,filterImage);
         device.SetSamplerState(0,SamplerState.MinFilter,TextureFilter.Point);
         device.SetSamplerState(0,SamplerState.MagFilter,TextureFilter.Point);

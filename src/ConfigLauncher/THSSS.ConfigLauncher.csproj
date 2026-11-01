@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../TargetFrameworks.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Config</AssemblyName>
+    <RootNamespace>THSSS.ConfigLauncher</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

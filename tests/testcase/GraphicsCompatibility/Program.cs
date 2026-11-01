@@ -1,7 +1,6 @@
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SlimDX;
 using SlimDX.Direct3D9;
 using Texture = SlimDX.Direct3D9.Texture;
@@ -20,11 +19,11 @@ UniformBufferReadback.Run(gl, device.RenderBackend);
 // Source rows are top-down: row 0 is red/green, row 1 is blue/white.
 // The upload preserves that order in GL row 0 (no flip on upload). Every V flip in
 // this port happens later, in sprite UV generation or render-target orientation.
-using var image = new Image<Rgba32>(2, 2);
-image[0, 0] = new Rgba32(255, 0, 0, 255);
-image[1, 0] = new Rgba32(0, 255, 0, 255);
-image[0, 1] = new Rgba32(0, 0, 255, 255);
-image[1, 1] = new Rgba32(255, 255, 255, 255);
+using var image = new SKBitmap(2, 2, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+image.SetPixel(0, 0, new SKColor(255, 0, 0, 255));
+image.SetPixel(1, 0, new SKColor(0, 255, 0, 255));
+image.SetPixel(0, 1, new SKColor(0, 0, 255, 255));
+image.SetPixel(1, 1, new SKColor(255, 255, 255, 255));
 using var texture = Texture.FromImage(device, image);
 // GetTexImage writes the ENTIRE texture: allocate all 2*2*4 bytes, not one pixel.
 var bytes = new byte[16];

@@ -65,44 +65,48 @@ internal class xWMAStream : Stream
 	{
 		byte[] array = new byte[4];
 		dataStream.Seek(0L, SeekOrigin.Begin);
-		dataStream.Read(array, 0, 4);
+		dataStream.ReadExactly(array, 0, 4);
 		if (Encoding.ASCII.GetString(array) != "RIFF")
 		{
 			throw new InvalidDataException("Invalid xWMA file.");
 		}
-		dataStream.Read(array, 0, 4);
+		dataStream.ReadExactly(array, 0, 4);
 		int num = BitConverter.ToInt32(array, 0);
 		if (dataStream.Length != num + 8)
 		{
 			throw new InvalidDataException("Invalid Format");
 		}
-		dataStream.Read(array, 0, 4);
+		dataStream.ReadExactly(array, 0, 4);
 		if (Encoding.ASCII.GetString(array) != "XWMA")
 		{
 			throw new InvalidDataException("Invalid xWMA file.");
 		}
-		long num2 = 0L;
-		for (num2 = dataStream.Read(array, 0, 4); num2 > 3; num2 = dataStream.Read(array, 0, 4))
+		while (true)
 		{
+			// A stream may return fewer bytes than requested without reaching EOF.
+			int firstByte = dataStream.ReadByte();
+			if (firstByte < 0) break;
+			array[0] = (byte)firstByte;
+			dataStream.ReadExactly(array, 1, 3);
 			string text = Encoding.ASCII.GetString(array);
-			dataStream.Read(array, 0, 4);
+			dataStream.ReadExactly(array, 0, 4);
 			num = BitConverter.ToInt32(array, 0);
 			switch (text)
 			{
 			case "fmt ":
 			{
-				dataStream.Read(array, 0, 2);
+				dataStream.ReadExactly(array, 0, 2);
 				ushort num4 = BitConverter.ToUInt16(array, 0);
 				format = new WaveFormat();
-				dataStream.Read(array, 0, 2);
+				dataStream.ReadExactly(array, 0, 2);
 				format.Channels = (short)BitConverter.ToUInt16(array, 0);
-				dataStream.Read(array, 0, 4);
+				dataStream.ReadExactly(array, 0, 4);
 				format.SamplesPerSecond = BitConverter.ToInt32(array, 0);
-				dataStream.Read(array, 0, 4);
+				dataStream.ReadExactly(array, 0, 4);
 				format.AverageBytesPerSecond = BitConverter.ToInt32(array, 0);
-				dataStream.Read(array, 0, 2);
+				dataStream.ReadExactly(array, 0, 2);
 				format.BlockAlignment = BitConverter.ToInt16(array, 0);
-				dataStream.Read(array, 0, 2);
+				dataStream.ReadExactly(array, 0, 2);
 				format.BitsPerSample = BitConverter.ToInt16(array, 0);
 				switch (num4)
 				{
@@ -118,18 +122,18 @@ internal class xWMAStream : Stream
 					waveFormatExtensible.AverageBytesPerSecond = format.AverageBytesPerSecond;
 					waveFormatExtensible.BlockAlignment = format.BlockAlignment;
 					waveFormatExtensible.BitsPerSample = format.BitsPerSample;
-					dataStream.Read(array, 0, 2);
+					dataStream.ReadExactly(array, 0, 2);
 					num = BitConverter.ToInt16(array, 0);
 					if (num != 22)
 					{
 						throw new InvalidDataException("Invalid Format.");
 					}
-					dataStream.Read(array, 0, 2);
+					dataStream.ReadExactly(array, 0, 2);
 					waveFormatExtensible.ValidBitsPerSample = BitConverter.ToInt16(array, 0);
-					dataStream.Read(array, 0, 4);
+					dataStream.ReadExactly(array, 0, 4);
 					waveFormatExtensible.SpeakerMask = (Speakers)BitConverter.ToUInt32(array, 0);
 					byte[] array2 = new byte[16];
-					dataStream.Read(array2, 0, 16);
+					dataStream.ReadExactly(array2, 0, 16);
 					waveFormatExtensible.SubFormat = new Guid(array2);
 					waveFormatExtensible.FormatTag = (short)WaveFormatTag.Extensible;
 					format = waveFormatExtensible;
@@ -150,7 +154,7 @@ internal class xWMAStream : Stream
 				decodedPacketCumulativeBytes = new int[num3];
 				for (int i = 0; i < num3; i++)
 				{
-					dataStream.Read(array, 0, 4);
+					dataStream.ReadExactly(array, 0, 4);
 					decodedPacketCumulativeBytes[i] = BitConverter.ToInt32(array, 0);
 				}
 				break;

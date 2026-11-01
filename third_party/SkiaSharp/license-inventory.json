@@ -1,0 +1,56 @@
+[
+  {
+    "package": "skiasharp",
+    "version": "4.154.0",
+    "file": "skiasharp-4.154.0/LICENSE.txt",
+    "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+  },
+  {
+    "package": "skiasharp.nativeassets.linux",
+    "version": "4.154.0",
+    "file": "skiasharp.nativeassets.linux-4.154.0/LICENSE.txt",
+    "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+  },
+  {
+    "package": "skiasharp.nativeassets.linux",
+    "version": "4.154.0",
+    "file": "skiasharp.nativeassets.linux-4.154.0/THIRD-PARTY-NOTICES.txt",
+    "sha256": "21504c46c4c58aa64c1055bd2dcbc5f9a136b4b8c412ed3cc6740e22c5b127f5"
+  },
+  {
+    "package": "harfbuzzsharp",
+    "version": "14.2.1.400",
+    "file": "harfbuzzsharp-14.2.1.400/LICENSE.txt",
+    "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+  },
+  {
+    "package": "skiasharp",
+    "version": "2.88.9",
+    "file": "skiasharp-2.88.9/LICENSE.txt",
+    "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+  },
+  {
+    "package": "skiasharp",
+    "version": "2.88.9",
+    "file": "skiasharp-2.88.9/THIRD-PARTY-NOTICES.txt",
+    "sha256": "21504c46c4c58aa64c1055bd2dcbc5f9a136b4b8c412ed3cc6740e22c5b127f5"
+  },
+  {
+    "package": "skiasharp.nativeassets.linux",
+    "version": "2.88.9",
+    "file": "skiasharp.nativeassets.linux-2.88.9/LICENSE.txt",
+    "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+  },
+  {
+    "package": "skiasharp.nativeassets.linux",
+    "version": "2.88.9",
+    "file": "skiasharp.nativeassets.linux-2.88.9/THIRD-PARTY-NOTICES.txt",
+    "sha256": "21504c46c4c58aa64c1055bd2dcbc5f9a136b4b8c412ed3cc6740e22c5b127f5"
+  },
+  {
+    "package": "harfbuzzsharp",
+    "version": "8.3.1.1",
+    "file": "harfbuzzsharp-8.3.1.1/LICENSE.txt",
+    "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+  }
+]

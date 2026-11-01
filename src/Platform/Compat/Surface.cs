@@ -91,15 +91,13 @@ public unsafe class Surface : IDisposable
     {
         ArgumentNullException.ThrowIfNull(surface);
         ObjectDisposedException.ThrowIf(surface.IsDisposed, surface);
-        SixLabors.ImageSharp.Formats.IImageEncoder encoder = format switch
+        THSSS.Imaging.RasterFormat encoder = format switch
         {
-            ImageFileFormat.Jpg => new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder(),
-            ImageFileFormat.Png => new SixLabors.ImageSharp.Formats.Png.PngEncoder(),
-            ImageFileFormat.Bmp => new SixLabors.ImageSharp.Formats.Bmp.BmpEncoder(),
-            ImageFileFormat.Tga => new SixLabors.ImageSharp.Formats.Tga.TgaEncoder(),
-            ImageFileFormat.Ppm => new SixLabors.ImageSharp.Formats.Pbm.PbmEncoder
-            { ColorType = SixLabors.ImageSharp.Formats.Pbm.PbmColorType.Rgb,
-              ComponentType = SixLabors.ImageSharp.Formats.Pbm.PbmComponentType.Byte },
+            ImageFileFormat.Jpg => THSSS.Imaging.RasterFormat.Jpeg,
+            ImageFileFormat.Png => THSSS.Imaging.RasterFormat.Png,
+            ImageFileFormat.Bmp => THSSS.Imaging.RasterFormat.Bmp,
+            ImageFileFormat.Tga => THSSS.Imaging.RasterFormat.Tga,
+            ImageFileFormat.Ppm => THSSS.Imaging.RasterFormat.Ppm,
             _ => throw new NotSupportedException($"Screenshot encoding {format} is not supported.")
         };
         var backend = surface._backend;
@@ -146,13 +144,11 @@ public unsafe class Surface : IDisposable
             Array.Copy(pixels, bottom, pixels, top, stride);
             Array.Copy(row, 0, pixels, bottom, stride);
         }
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgba32>(
-            pixels, region.Width, region.Height);
-        if (region.Width != surface.Width || region.Height != surface.Height)
-            SixLabors.ImageSharp.Processing.ProcessingExtensions.Mutate(image, ctx =>
-                SixLabors.ImageSharp.Processing.ResizeExtensions.Resize(ctx, surface.Width, surface.Height));
+        using var image = THSSS.Imaging.RasterCodec.FromPixels(pixels, region.Width, region.Height);
+        using var resized = region.Width != surface.Width || region.Height != surface.Height
+            ? THSSS.Imaging.RasterCodec.Resize(image, surface.Width, surface.Height) : null;
         using var stream = System.IO.File.Create(fileName);
-        image.Save(stream, encoder);
+        THSSS.Imaging.RasterCodec.Encode(resized ?? image, stream, encoder);
     }
 
     /// <summary>D3D9 depth-stencil surface. Backend render targets own their depth.</summary>

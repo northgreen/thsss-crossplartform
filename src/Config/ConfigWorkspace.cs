@@ -13,7 +13,13 @@ internal sealed class ConfigWorkspace
 {
     public static readonly string[] GameExecutableCandidates = { "THSSS.exe", "THSSS", "THSSS.dll" };
 
-    public ConfigWorkspace(string dataRoot) => DataRoot = Path.GetFullPath(dataRoot);
+    public ConfigWorkspace(string dataRoot, string? applicationDirectory = null)
+    {
+        DataRoot = Path.GetFullPath(dataRoot);
+        _applicationDirectory = Path.GetFullPath(applicationDirectory ?? AppContext.BaseDirectory);
+    }
+
+    private readonly string _applicationDirectory;
 
     public string DataRoot { get; }
     public string IniPath => Path.Combine(DataRoot, ConfigSettings.FileName);
@@ -29,7 +35,13 @@ internal sealed class ConfigWorkspace
 
     public string? FindGameExecutable()
     {
-        foreach (string directory in new[] { DataRoot, AppContext.BaseDirectory })
+        // Packaged Avalonia lives below the BCL launcher; an external player-data
+        // directory must not hide the game beside that launcher.
+        string parent = Path.GetFileName(Path.TrimEndingDirectorySeparator(_applicationDirectory))
+            .Equals("ConfigApp", StringComparison.OrdinalIgnoreCase)
+            ? Directory.GetParent(Path.TrimEndingDirectorySeparator(_applicationDirectory))!.FullName
+            : _applicationDirectory;
+        foreach (string directory in new[] { DataRoot, _applicationDirectory, parent })
             foreach (string candidate in GameExecutableCandidates)
             {
                 string path = Path.Combine(directory, candidate);
