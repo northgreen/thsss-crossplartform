@@ -1,0 +1,69 @@
+{
+  "cases": 6000,
+  "dependencies": {
+    "/home/ictye/.cache/thsss-degree-candidate-2026/GameplayMath.Fody.deps.json": "dc7aef4abab4765025db8bd595b37665c523e0adfed6fcb07e7b200b4e79f8e1",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/GameplayMath.Fody.dll": "ec834284a6477fee65b4eb298d8c863560446c6f72ad4fca8d236bcc0cd5bd41",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/INIFileParser.dll": "f81ba0dd987d46a67b1879ef4ee11c14f32940ff211eace347a68e42bf272554",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Microsoft.DotNet.PlatformAbstractions.dll": "b1f4ad169fb192747f5d2d3111c01db4257e3ec1f7f18f301f7fc4be3b869ff3",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Microsoft.Extensions.DependencyModel.dll": "ba04fca7b32356c10b3d23c3c76210fbad6aceb2ebcb03da8315b6857168aa89",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Core.dll": "56e4a018bd9a4e0fb94f97331191db7e86af98b0e23082ea36863f146e217a5c",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.GLFW.dll": "9c3c71d2fe0b01bb4fd00e7047001b99db8869384b7ba6b9750f389eece224dc",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Input.Common.dll": "4979f2a0afd682e740c247fb103cdd8368d87381728cf633d3bfa4515c0289d1",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Input.Glfw.dll": "43d615b40d28824c7b7eb488e2b891a09ed6353dd3d0d73a366c67abe8b5270e",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Maths.dll": "c3b2b856435a1824f21d0467241f7ef7929980fc11a61d651166ce60828475eb",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.OpenAL.dll": "a0732fd0edef476ba7e488bed19aa7306ccc3b5e5a993809f10ac050694cd40b",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.OpenGL.dll": "65fa25d99f255e459dc4604186ee351a7d9a0d636b4c551bc14cf6c981ad805e",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Vulkan.Extensions.KHR.dll": "be226e227f8695b714db140d5f267760c69b2d64a929b10e3d29d2787dd6edf7",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Vulkan.dll": "5a56f1fe4db712091b6db94e16b6f7e71049027e48f0ee72e001846f1d7a5f45",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Windowing.Common.dll": "7c80870d5135714dc30efa71e4adb0de9a8c699602cd7e5409d6b21eaa5fad21",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/Silk.NET.Windowing.Glfw.dll": "62d66480ff7e9973a231c5898e7c293d814558e5e156f59898ba41db2b98f4a8",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/SixLabors.Fonts.dll": "3c313956bbce50b6fa3b43491c59f4b33cff21daffee07d968e67ff081218bc5",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/SixLabors.ImageSharp.Drawing.dll": "8608dfd9d7cce1d2b58f6ccea8524fb06185ca7f0a05a54d8f89acf89aaf23f2",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/SixLabors.ImageSharp.dll": "ac8f584dab33cfdef2e35d776aadfef54292332236d51fc81a88f432ed48842b",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Collections.Immutable.dll": "84ff48bd0a32cc14edf47626d2f29c78c17f6b6e2333740d6eff109440b92711",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Formats.Nrbf.dll": "43317809459b697a847eadf9cde498efce89204f781e0cebe0d5ca7ede18a71b",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.IO.Pipelines.dll": "a86a7e46a2b9f3a1a706d7dc4a3b8068914a27190a3aae8f18dc3f22a79969ff",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Reflection.Metadata.dll": "42464357485f1b78792954969e5d629044cf50380275771883bd6afe6164ff8c",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Resources.Extensions.dll": "4aa3e23bac8b4e00ebc1933c27979eb68b12296784809c40b620cd2afd635260",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Text.Encoding.CodePages.dll": "64de5604505ccdbd14fa8f22db83ca8640fdb252224fd7bb9a2d9ebb33822888",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Text.Encodings.Web.dll": "930baf0ea8e302ae6f339c6c19c4f96d1357a5378e0a90fb5406113fd214763c",
+    "/home/ictye/.cache/thsss-degree-candidate-2026/System.Text.Json.dll": "70d7fb8c873eedfa3353e10935620f345cf18b46535393bd7a02de337bd19fa2"
+  },
+  "dll": "/home/ictye/.cache/thsss-hard6-pre-acceleration-2026/THSSS.dll",
+  "dll_sha256": "32096e8326f89cb8bc003a8c2001dc1acc2bc34af802a8dd8ec0fdd45eff8740",
+  "identities_json": "/home/ictye/.cache/thsss-hard6-pre-acceleration-2026/identities.json",
+  "identities_sha256": "244097115f0475afee2dce6eca81a674769da67147748ab7dec992021fbd83d7",
+  "inputs_sha256": "41fd991d84f2828263fc54ef725d4e820777a2e785c7bdb025964cd7436590da",
+  "native_library": "/home/ictye/.cache/thsss-hard6-pre-acceleration-2026/libthsss_legacy_math.so",
+  "native_sha256": "7e47dc54c0126250c13d73a9867aa72d7997c886522dcecfd7c3114006555776",
+  "oracle": "Actual frozen modern woven BaseObject_CS.Ctrl; NOT a CLR2 oracle",
+  "outputs": {
+    "software-24.txt.gz": {
+      "gzip_sha256": "42b080102df09d41015fd49d60219e8e3e438b440759787b5d7785ad39c8a120",
+      "raw_sha256": "dc4152a7a4c1bf66315ba53a8fea913d1f4bbd89f168aa70f1d0afb9576da677"
+    },
+    "software-53.txt.gz": {
+      "gzip_sha256": "ba9cc0e027be8cc8bd634edbc2f42ea9e59b8629d899a1ff8959d12a2bce7c17",
+      "raw_sha256": "40baa454a22817cf8d23fe5f58702124b8b2ab019179c16c60ad4c7b1509f00e"
+    },
+    "x87-24.txt.gz": {
+      "gzip_sha256": "42b080102df09d41015fd49d60219e8e3e438b440759787b5d7785ad39c8a120",
+      "raw_sha256": "dc4152a7a4c1bf66315ba53a8fea913d1f4bbd89f168aa70f1d0afb9576da677"
+    },
+    "x87-53.txt.gz": {
+      "gzip_sha256": "ba9cc0e027be8cc8bd634edbc2f42ea9e59b8629d899a1ff8959d12a2bce7c17",
+      "raw_sha256": "40baa454a22817cf8d23fe5f58702124b8b2ab019179c16c60ad4c7b1509f00e"
+    }
+  },
+  "prefix_only_cases": 32,
+  "probe_sha256": {
+    "Debug": "25ed46b20355734028d0c30b6ddcfd6e7041f05dc0cedc9469951741753f90a6",
+    "Release": "7dfe676a5ffd51013368d30135fcc551ba363ff9ce3e07ad6d10b71ebd3d10b3"
+  },
+  "sources": {
+    "AccelerationProbe.csproj": "8b11b37f10472abcd9fb280c2dedd900a41aa63a8d4ddd343cc09fc1178ffacb",
+    "Probe.cs": "848fbd02110fd119f0efb5a5f9a1e8e866a5a61686ac30becc85ae8fc37f9213",
+    "cases.py": "6786867e69b87d4d187b960269178f11d90eec70cfbe65fd8e8afcfc7bd3585b",
+    "verify.py": "da557731fd4c6961aedfddc51c8a4b351b3b413ff99e9f4f2b64a4ad777d558b"
+  }
+}

@@ -101,8 +101,15 @@ public class Bullet_StraightLaser : BaseBullet_Touhou
 		for (int i = 3; i < base.LastPoints.Length - 3; i++)
 		{
 			PointF pointF = base.LastPoints[i];
+#if THSSS_MATH_OFF
 			double num = Math.Sqrt((pointF.X - Target.OriginalPosition.X) * (pointF.X - Target.OriginalPosition.X) + (pointF.Y - Target.OriginalPosition.Y) * (pointF.Y - Target.OriginalPosition.Y));
 			if (num - (double)((float)Target.Region * Target.Scale) < (double)(Radius * base.ScaleLength))
+#else
+			// Preserve all four position reads and the original per-point early return.
+			if (SlimDX.Compat.LegacyFloat.LaserPointHit(pointF,
+				Target.OriginalPosition, Target.OriginalPosition, Target.OriginalPosition, Target.OriginalPosition,
+				Target.Region, Target.Scale, Radius, base.ScaleLength))
+#endif
 			{
 				return true;
 			}

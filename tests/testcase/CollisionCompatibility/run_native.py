@@ -7,12 +7,13 @@ import gzip
 import hashlib
 import json
 import platform
-import re
-from pathlib import Path
 import shutil
 import struct
 import subprocess
 import tempfile
+from pathlib import Path
+
+from native_geometry_audit import audit_integer_reject
 
 SUITE = Path(__file__).resolve().parent
 ROOT = SUITE.parents[2]
@@ -25,39 +26,6 @@ def require(condition, message):
 
 def identity(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def audit_integer_reject(library):
-    disassembler = shutil.which("objdump")
-    if not disassembler:
-        raise RuntimeError("Missing objdump")
-    assembly = subprocess.check_output(
-        [disassembler, "-d", "-C", "--no-show-raw-insn", str(library)], text=True
-    )
-    functions = dict(re.findall(
-        r"^[0-9a-f]+ <([^\n]+)>:\n(.*?)(?=^[0-9a-f]+ <|\Z)", assembly, re.M | re.S
-    ))
-    helpers = [body for name, body in functions.items() if name.startswith("circle_integer_reject(")]
-    require(len(helpers) == 1, "Expected shared production integer reject helper")
-    # Integer SSE bit moves/XOR are permitted; no FP arithmetic, conversion,
-    # comparison, x87 instruction, environment save/restore, or function call.
-    integer_instructions = set("""
-        mov movb movw movl movq movabs movd movdqa movdqu movzbl movzwl movslq
-        pxor pand por push pop lea add sub inc dec neg not and or xor test cmp
-        shl shr sar sal imul mul bsr bsf bt sbb adc cltq cdqe ret int3 nop nopl nopw
-    """.split())
-    instructions = re.findall(r"^\s+[0-9a-f]+:\s+(\w+)", helpers[0], re.M)
-    require(instructions, "Empty reject disassembly")
-    for instruction in instructions:
-        require(instruction in integer_instructions or instruction.startswith(("j", "set", "cmov")),
-                f"Noninteger instruction in reject helper: {instruction}")
-    entry = functions["hardware_circle_hit"]
-    call = entry.index("<circle_integer_reject(")
-    require(call < entry.index("<software_ext_load_float@plt>") < entry.index("fnsave"),
-            "Reject must precede ext80 codecs and FNSAVE")
-    require(not re.search(r"\b(?:fnsave|fld\w*|fst\w*|frstor)\b", entry[:call]),
-            "Hardware entry touches x87 before reject")
-    print(f"PASS machine audit: shared helper {len(instructions)} integer instructions; reject before codecs/FNSAVE", flush=True)
 
 
 def frozen_distance(library):

@@ -10,6 +10,8 @@ internal sealed unsafe class OpenGlBuffer : IRenderBuffer
     private readonly BufferTargetARB _target;
     private uint _id;
     private bool _disposed;
+    private readonly byte[]? _uniformContents;
+    private bool _uniformContentsKnown;
 
     internal OpenGlBuffer(GL gl, BufferKind kind, int sizeInBytes)
     {
@@ -21,6 +23,7 @@ internal sealed unsafe class OpenGlBuffer : IRenderBuffer
             _ => BufferTargetARB.ArrayBuffer,
         };
         SizeInBytes = Math.Max(1, sizeInBytes);
+        if (kind == BufferKind.Uniform) _uniformContents = new byte[SizeInBytes];
         _id = _gl.GenBuffer();
         _gl.BindBuffer(_target, _id);
         _gl.BufferData(_target, (uint)SizeInBytes, (void*)0, BufferUsageARB.DynamicDraw);
@@ -37,10 +40,19 @@ internal sealed unsafe class OpenGlBuffer : IRenderBuffer
     {
         if (data.IsEmpty || _id == 0) return;
         _gl.BindBuffer(_target, _id);
+        bool fullUniform = _uniformContents != null && offsetInBytes == 0 && data.Length == SizeInBytes;
+        // Keep binding side effects; only skip an identical complete uniform upload.
+        if (fullUniform && _uniformContentsKnown && data.SequenceEqual(_uniformContents)) return;
+        _uniformContentsKnown = false;
         unsafe
         {
             fixed (byte* src = data)
                 _gl.BufferSubData(_target, offsetInBytes, (uint)data.Length, src);
+        }
+        if (fullUniform)
+        {
+            data.CopyTo(_uniformContents);
+            _uniformContentsKnown = true;
         }
     }
 

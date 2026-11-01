@@ -16,6 +16,7 @@ using var window = Window.Create(options);
 window.Initialize();
 using var gl = window.CreateOpenGL();
 var device = new Device(gl, 64, 64) { GameWidth = 64, GameHeight = 64 };
+UniformBufferReadback.Run(gl, device.RenderBackend);
 // Source rows are top-down: row 0 is red/green, row 1 is blue/white.
 // The upload preserves that order in GL row 0 (no flip on upload). Every V flip in
 // this port happens later, in sprite UV generation or render-target orientation.

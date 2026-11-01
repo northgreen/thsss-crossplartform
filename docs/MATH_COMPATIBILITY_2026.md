@@ -16,8 +16,12 @@
 - 圆形数值块内的保守整数粗筛只提前拒绝明确远离的候选：在稳定坐标、有限且受限的非负半径域，用外扩的整数上界加16像素余量。任一守卫不满足就回退原精确图；不改变候选顺序，不直接接受命中，不使用平方距离替换
 - 椭圆块内的方向加角度、距离加目标范围与三角函数结果保持扩展中间值；仅在原 IL 的显式转换、Math 参数及公有返回处落盘，不把 C# 的 double 局部声明当成存储边界。实际物理更新由窗口线程顺序执行；标量捕获不承诺任意并发位置写入与原计算间穿插时序等价
 - 移动块保留 `MovePoint` 分支、两次完整 `Position` getter、四次原坐标读取、六次边界偏移读取，以及最终 setter 的独立单精度落盘。原坐标加偏移再减偏移不能代数消除；块返回 `OriginalPosition`，不再重复调用 `Position` setter
+- `Bullet_StraightLaser.HitCheck` 的每个候选点使用独立激光数值块，保留点循环端点、命中早退及四次目标位置捕获。sqrt 参数与两侧范围乘积各有一次 binary64 边界，sqrt 返回本身保持扩展精度；不能复用带返回落盘的圆形块。`tests/testcase/LaserCompatibility/` 对照冻结的实际旧方法，`NativeChecks/` 校验原语图、FPU 状态与机器码；这是现代实现优化等价验证，不是新增真实 CLR2 黄金
+- 激光点块的整数粗筛仅在四次目标坐标捕获相同、有限范围及非负范围因子满足守卫时提前拒绝远点；原点索引、严格命中比较和近点精确图保持不变。资产内容相同不代表 Replay 输入相同：六面按目录枚举顺序创建控制器，测试须复用原资产树并验证实际枚举顺序，不能通过生产排序掩盖测试副本改变顺序的问题。
+- `native_control.cpp` 合并公共角度增量及弹幕脚本加速度计算。角度保留 degree getter、增量与 setter 的逐次 binary64 边界，归一化仍使用原 setter 的加减循环；加速度保留扩展角度、Cos/Sin 各自的 binary64 参数与 binary32 返回和最终分量存储，不跳过零值或改用合并三角函数。`DegreeCompatibility`、`AccelerationCompatibility` 分别冻结实际旧方法并校验原语图和宿主状态；活动场景所有权检查覆盖角速度、脚本加速度输入和 Ax/Ay 写入。完整六面优化等价不等于选面录像的原始末态完全匹配，亦不保证稳定60帧
 - `FromSingle/FromDouble` 使用逐位整数展开，精确保留符号、次正规数及旧 NaN quiet/payload 规则；`ToSingle/ToDouble` 只对已精确可表示的规范值走整数编码，所有舍入、非规范 ext80、NaN/无穷与越界都回退原 native codec。算术仍走选定 x87/软件后端，没有借机改成宿主浮点计算或忽略 GC 转换约束
 - 编译参数 `THSSSMathMode=auto|software|off` 决定是否包含兼容路径。默认 auto 保留自动后端及环境覆盖；software 固定软件实现并拒绝硬件环境覆盖；off 使用普通 .NET 原表达式与 Random 子类，既不织入也不包含数学 native 库及 LegacyFloat 类型，不接受旧 CLR 黄金或旧 Replay 一致性保证。三态不是运行时热切换，发布记录绑定最终 DLL 哈希
+- 软件内核启用现成的 CLZ/128 位整数原语与 ThinLTO，消除数学块内部重复包装调用；保持导出 ABI、旧舍入和独立 Sin/Cos，不使用 fast-math。软件椭圆判定在原 Cos 项已为 >=1 或 NaN 时提前返回未命中：另一平方项只能非负或 NaN，原有序比较必为假。只移动独立项的求值，保留每项的逐次舍入、N64 半轴边界及最终 left+right 顺序，硬件表达式不变
 
 执行生产回归（需要 .NET、Python 3 和 Clang/LLVM；源码构建还需要 Fody 包还原）：
 

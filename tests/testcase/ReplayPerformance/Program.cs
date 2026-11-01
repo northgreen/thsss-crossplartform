@@ -43,6 +43,11 @@ internal sealed class ProfileRun : IDisposable
     private readonly List<object> transitions = new();
     private readonly List<string>? stateDigests = Environment.GetEnvironmentVariable("THSSS_PROFILE_STATE_HASH") == "1" ? new() : null;
     private readonly ReplayInfo metadata;
+    private readonly string targetStage;
+    private readonly int selectedRecord;
+    private readonly MyPlaneInfo initialRecord;
+    private readonly MyPlaneInfo completionRecord;
+    private readonly string completionState;
     private readonly long markerOffset;
     private readonly string replayPath;
     private IWindow? window;
@@ -76,20 +81,40 @@ internal sealed class ProfileRun : IDisposable
         callCounterFields = counters?.GetFields(BindingFlags.Public | BindingFlags.Static).Where(f => f.Name.StartsWith("Count_", StringComparison.Ordinal)).ToArray() ?? Array.Empty<FieldInfo>();
         replayPath = Path.Combine(Environment.GetEnvironmentVariable("THSSS_DATA_ROOT")!, "Replay/thSSS_25.rpy");
         metadata = Replay.ReadTitle(replayPath);
+        targetStage = Environment.GetEnvironmentVariable("THSSS_PROFILE_STAGE") ?? metadata.StartStage;
+        int startOrdinal = StageOrdinal(metadata.StartStage);
+        int targetOrdinal = StageOrdinal(targetStage);
+        selectedRecord = targetOrdinal - startOrdinal;
+        if ((targetStage == "StEx") != (metadata.StartStage == "StEx") ||
+            selectedRecord < 0 || selectedRecord + 1 >= metadata.MyPlaneData.Count)
+            throw new InvalidDataException($"Replay {metadata.StartStage}→{metadata.LastStage} has no initial/final records for {targetStage}.");
+        initialRecord = metadata.MyPlaneData[selectedRecord];
+        completionRecord = metadata.MyPlaneData[selectedRecord + 1];
+        completionState = targetStage == "StEx" ? "GameSetMenu" : targetStage == "St6" ? "All" : $"St{targetOrdinal + 2}";
+        if (completionRecord.DataPosition <= initialRecord.DataPosition)
+            throw new InvalidDataException("Selected stage final key offset must follow its initial offset.");
         byte[] data = File.ReadAllBytes(replayPath);
         markerOffset = -1;
         for (int i = 0; i + 1 < data.Length; i += 2)
             if (data[i] == 240 && data[i + 1] == 15) { markerOffset = i; break; }
         if (markerOffset < 0) throw new InvalidDataException("No aligned 4080 replay marker.");
         int stageControlMarkers = 0;
-        for (long i = metadata.MyPlaneData[0].DataPosition; i < markerOffset; i += 2)
+        for (long i = initialRecord.DataPosition; i < completionRecord.DataPosition; i += 2)
             if (data[i] == 14 && data[i + 1] == 224) stageControlMarkers++;
-        Save("metadata.json", new { metadata, bytes = data.Length, markerOffset,
-            initialKeyOffset = metadata.MyPlaneData[0].DataPosition,
-            keyWordsToMarker = (markerOffset - metadata.MyPlaneData[0].DataPosition) / 2,
+        Save("metadata.json", new { metadata, selectedStage = targetStage, selectedRecord, completionState,
+            replayAlias = replayPath, replaySha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant(),
+            sourceReplay = Environment.GetEnvironmentVariable("THSSS_PROFILE_REPLAY_SOURCE"), bytes = data.Length, markerOffset,
+            initialKeyOffset = initialRecord.DataPosition,
+            keyWordsToMarker = (markerOffset - initialRecord.DataPosition) / 2,
             stageControlMarkers, terminalMarkerValue = 4080,
-            recordedCompletionOffset = metadata.MyPlaneData[^1].DataPosition });
+            recordedCompletionOffset = completionRecord.DataPosition });
     }
+
+    private static int StageOrdinal(string name) => name switch
+    {
+        "St1" => 0, "St2" => 1, "St3" => 2, "St4" => 3, "St5" => 4, "St6" => 5, "StEx" => 6,
+        _ => throw new InvalidDataException($"Unsupported profiling stage '{name}'; expected St1..St6 or StEx.")
+    };
 
     private static Type OwnershipProbeType() => AppDomain.CurrentDomain.GetAssemblies()
         .Single(a => a.GetName().Name == "OwnershipProbe").GetType("THSSS.Diagnostics.OwnershipProbe", throwOnError: true)!;
@@ -161,19 +186,19 @@ internal sealed class ProfileRun : IDisposable
         if (name == "GameState_MusicLoading") { loadingGap = true; return; }
         if ((!backgroundReplayDiagnostic && !game.Form_Main.Focused) || name == "GameState_PauseMenu")
             throw new InvalidOperationException($"Focus/pause interrupted replay at frame {rows.Count}: {name}, focused={game.Form_Main.Focused}.");
-        if (state.StageName != metadata.StartStage)
-            throw new InvalidOperationException($"Unexpected state {name}/{state.StageName}, expected {metadata.StartStage}.");
+        if (state.StageName != targetStage)
+            throw new InvalidOperationException($"Unexpected state {name}/{state.StageName}, expected {targetStage}.");
         stage = state.StageData;
         if (!stage.OnReplay) throw new InvalidOperationException("Production stage is not replaying.");
         if (rows.Count == 0) Ready(state);
         Capture(timestamp, callbackTicks);
         long position = stage.Rep.DataPosition;
-        if (position == metadata.MyPlaneData[^1].DataPosition)
+        if (position == completionRecord.DataPosition)
         {
-            Save("recorded-final-offset.json", new { frame = rows.Count, position, actual = Player(stage.MyPlane), expected = metadata.MyPlaneData[^1] });
-            if (metadata.StartStage == metadata.LastStage && state.StateSwitchData?.NextState is string next && next.StartsWith("St", StringComparison.Ordinal))
+            Save("recorded-final-offset.json", new { frame = rows.Count, position, actual = Player(stage.MyPlane), expected = completionRecord });
+            if (state.StateSwitchData?.NextState is string next && next == completionState)
             {
-                VerifyRestored(stage.MyPlane, metadata.MyPlaneData[^1]);
+                VerifyRestored(stage.MyPlane, completionRecord);
                 Save("stage-completion.json", new { kind = "recorded-final-state-before-next-stage", position, next, endMarkerConsumed = false });
                 Finish(true, state);
                 return;
@@ -181,6 +206,13 @@ internal sealed class ProfileRun : IDisposable
         }
         bool end = position == markerOffset + 2 && state.StateSwitchData?.NextState == "GameOverMenu";
         if (position > markerOffset + 2) throw new InvalidDataException("Read past replay end marker.");
+        if (end)
+        {
+            if (metadata.LastStage == "All" || selectedRecord + 2 < metadata.MyPlaneData.Count)
+                throw new InvalidOperationException($"Replay reached GameOver end marker without recorded {targetStage}→{completionState} completion.");
+            VerifyRestored(stage.MyPlane, completionRecord);
+            Save("stage-completion.json", new { kind = "recorded-terminal-game-over", position, endMarkerConsumed = true });
+        }
         if (end || limit > 0 && rows.Count >= limit) Finish(end, state);
     }
 
@@ -189,22 +221,24 @@ internal sealed class ProfileRun : IDisposable
         var type = typeof(Game_Main).Assembly.GetType("Shooting.MenuGroup_ReplayStageSelect", true)!;
         var item = new DescriptionMenuItem(state.StageData, "25") { Description = "profile replay" };
         object menu = Activator.CreateInstance(type, state.StageData, new PointF(0, 0), item)!;
-        int selection = metadata.StartStage == "StEx" ? 6 : int.Parse(metadata.StartStage[2..]) - 1;
+        int selection = StageOrdinal(targetStage);
         type.GetProperty("MenuSelectIndex")!.SetValue(menu, selection);
         // The actual menu restores every MyPlaneInfo setter, plane type, rank and key offset.
         type.GetMethod("ProcessZ")!.Invoke(menu, null);
         var change = state.StageData.StateSwitchData ?? throw new InvalidOperationException("Replay menu did not request a stage.");
-        if (change.NextState != metadata.StartStage || change.SDPswitch == null)
+        if (change.NextState != targetStage || change.SDPswitch == null)
             throw new InvalidOperationException("Replay menu selected incorrect start metadata.");
         initial = Player(change.SDPswitch.MyPlane);
-        VerifyRestored(change.SDPswitch.MyPlane, metadata.MyPlaneData[0]);
+        VerifyRestored(change.SDPswitch.MyPlane, initialRecord);
+        if (change.SDPswitch.Difficulty != metadata.Rank || state.StageData.Rep.DataPosition != initialRecord.DataPosition)
+            throw new InvalidOperationException("Replay menu restored incorrect rank or key offset.");
         lastLife = change.SDPswitch.MyPlane.Life;
         lastPosition = state.StageData.Rep.DataPosition;
         state.StateSwitchData = change;
         started = true;
         Save("start.json", new { pid = Environment.ProcessId, change.NextState, keyOffset = lastPosition,
             rank = change.SDPswitch.Difficulty.ToString(), playerType = change.SDPswitch.MyPlane.GetType().Name,
-            restored = initial, source = metadata.MyPlaneData[0] });
+            restored = initial, selectedStage = targetStage, selectedRecord, source = initialRecord });
     }
 
     private void Ready(IGameState state)
@@ -217,10 +251,21 @@ internal sealed class ProfileRun : IDisposable
             throw new InvalidOperationException("Replay profiler is not running inside its isolated data root");
         stageAllocatedBefore = GC.GetTotalAllocatedBytes(false);
         var gl = SlimDX.Direct3D9.Device.CurrentContext;
+        string gpu = gl?.GetStringS(StringName.Renderer) ?? throw new InvalidOperationException("No active OpenGL context.");
+        if (new[] { "llvmpipe", "softpipe", "swrast", "software", "swiftshader" }.Any(name => gpu.Contains(name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Hardware OpenGL required, got {gpu}.");
+        string compiledMode = typeof(Game_Main).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .SingleOrDefault(a => a.Key == "THSSSMathMode")?.Value ?? "auto";
+        string requestedBackend = Environment.GetEnvironmentVariable("THSSS_MATH_BACKEND") ?? "auto";
+        string expectedBackend = compiledMode == "software" || requestedBackend == "software" ||
+            ((requestedBackend is "auto" or "") && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64)
+            ? "software" : "x87";
         var ready = new { pid = Environment.ProcessId, stage = state.StageName,
+            selectedRecord, expectedInitialKeyPosition = initialRecord.DataPosition, difficulty = stage!.Difficulty.ToString(),
             dataRoot = expectedDataRoot, currentDirectory = Environment.CurrentDirectory,
             frames = rows.Count, keyPosition = stage!.Rep.DataPosition, markerOffset,
-            backend = SlimDX.Compat.LegacyFloat.Backend, renderer = game!.DeviceMain.RenderBackend.Kind.ToString(),
+            backend = SlimDX.Compat.LegacyFloat.Backend, compiledMode, requestedBackend, expectedBackend,
+            renderer = game!.DeviceMain.RenderBackend.Kind.ToString(),
             gpu = gl?.GetStringS(StringName.Renderer), vendor = gl?.GetStringS(StringName.Vendor),
             glVersion = gl?.GetStringS(StringName.Version), window = window!.Size.ToString(), framebuffer = window.FramebufferSize.ToString(),
             presentInterval = Field(typeof(Game_Main), "presentInterval").GetValue(game),
@@ -228,7 +273,8 @@ internal sealed class ProfileRun : IDisposable
             verticalSync = Field(typeof(Game_Main), "verticalSync").GetValue(game),
             backgroundReplayDiagnostic, replayKeyboardIsolated, phaseCountersAvailable = phaseFields != null, phaseCounterNames = phaseFields == null ? null : PhaseNames,
             stopwatchFrequency = Stopwatch.Frequency };
-        if (SlimDX.Compat.LegacyFloat.Backend != "x87") throw new InvalidOperationException("Expected selected x87 backend.");
+        if (SlimDX.Compat.LegacyFloat.Backend != expectedBackend)
+            throw new InvalidOperationException($"Expected {expectedBackend} backend, got {SlimDX.Compat.LegacyFloat.Backend}.");
         Save("ready.json", ready);
         Console.WriteLine("PROFILE_READY " + JsonSerializer.Serialize(ready));
     }
@@ -260,7 +306,7 @@ internal sealed class ProfileRun : IDisposable
             p.Graze != m.Graze || p.OriginalPosition.X != m.PosX || p.OriginalPosition.Y != m.PosY ||
             p.LifeChip != m.LifeChip || p.SpellChip != m.SpellChip || p.LifeUpCount != m.LifeUpCount ||
             p.StarPoint != m.StarPoint || p.HighItemScore != m.HighItemScore || p.Rate != m.Rate || p.LastColor != m.LastColor)
-            throw new InvalidOperationException("Menu restoration differs from replay initial MyPlaneInfo.");
+            throw new InvalidOperationException("Player state differs from selected replay MyPlaneInfo (including score, graze and exact float fields).");
     }
 
     private static object Player(BaseMyPlane plane) => new { plane.Life, plane.Spell, plane.Power, plane.Score,
@@ -287,7 +333,7 @@ internal sealed class ProfileRun : IDisposable
         var measured = rows.Skip(120).Where(x => !x.LoadingGap).ToArray();
         Save("summary.json", new { backgroundReplayDiagnostic, replayKeyboardIsolated, recordedStageCompleted = end, endMarkerConsumed = lastPosition == markerOffset + 2, captured = rows.Count, markerOffset, finalKeyPosition = lastPosition,
             elapsedSeconds = wall.Elapsed.TotalSeconds, lifeDrops, deathEntries, initial, final = Player(stage!.MyPlane),
-            expectedFinal = metadata.MyPlaneData[^1], pendingState = state.StateSwitchData?.NextState,
+            selectedStage = targetStage, selectedRecord, expectedFinal = completionRecord, pendingState = state.StateSwitchData?.NextState,
             stageTime = stage.TimeMain, warmupFrames = Math.Min(120, rows.Count),
             interval = Stats(measured.Select(x => x.IntervalTicks * milliseconds)),
             callbackIncludingPacing = Stats(measured.Select(x => x.CallbackTicks * milliseconds)),

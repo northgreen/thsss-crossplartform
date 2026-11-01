@@ -91,22 +91,28 @@ extern "C" int software_ellipse_hit(ELLIPSE_PARAMETERS) {
     argument = boundary64(boundary32(argument));
     software_ext_cos(&argument, &num4);
     software_ext_mul(&e, &num4, precision, &num4);
+    auto r = load_float(radius), num7 = load_float(length);
+    software_ext_mul(&r, &num7, precision, &num7);
+    num7 = boundary64(num7);
+    software_ext_mul(&num4, &num4, precision, &num4);
+    software_ext_div(&num4, &num7, precision, &num4);
+    software_ext_div(&num4, &num7, precision, &num4);
+    // The other squared term is nonnegative or NaN, so it cannot rescue this miss.
+    if (!ordered_less_than_one(num4)) {
+        *out = 0;
+        return 0;
+    }
     software_ext_sub(&theta, &bearing, precision, &argument); // Preserve the repeated argument graph.
     argument = boundary64(boundary32(argument));
     software_ext_sin(&argument, &num5);
     software_ext_mul(&e, &num5, precision, &num5);
 
-    auto r = load_float(radius), num6 = load_float(width), num7 = load_float(length);
+    auto num6 = load_float(width);
     software_ext_mul(&r, &num6, precision, &num6);
     num6 = boundary64(num6);
-    software_ext_mul(&r, &num7, precision, &num7);
-    num7 = boundary64(num7);
     software_ext_mul(&num5, &num5, precision, &num5);
     software_ext_div(&num5, &num6, precision, &num5);
     software_ext_div(&num5, &num6, precision, &num5);
-    software_ext_mul(&num4, &num4, precision, &num4);
-    software_ext_div(&num4, &num7, precision, &num4);
-    software_ext_div(&num4, &num7, precision, &num4);
     software_ext_add(&num5, &num4, precision, &num5);
     *out = ordered_less_than_one(num5) ? 1 : 0;
     return 0;

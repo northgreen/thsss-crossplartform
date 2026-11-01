@@ -1,0 +1,66 @@
+{
+  "cases": 6000,
+  "dependencies": {
+    "/tmp/thsss-hard6-laser-coarse-candidate/GameplayMath.Fody.deps.json": "dc7aef4abab4765025db8bd595b37665c523e0adfed6fcb07e7b200b4e79f8e1",
+    "/tmp/thsss-hard6-laser-coarse-candidate/GameplayMath.Fody.dll": "ec834284a6477fee65b4eb298d8c863560446c6f72ad4fca8d236bcc0cd5bd41",
+    "/tmp/thsss-hard6-laser-coarse-candidate/INIFileParser.dll": "f81ba0dd987d46a67b1879ef4ee11c14f32940ff211eace347a68e42bf272554",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Microsoft.DotNet.PlatformAbstractions.dll": "b1f4ad169fb192747f5d2d3111c01db4257e3ec1f7f18f301f7fc4be3b869ff3",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Microsoft.Extensions.DependencyModel.dll": "ba04fca7b32356c10b3d23c3c76210fbad6aceb2ebcb03da8315b6857168aa89",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Core.dll": "56e4a018bd9a4e0fb94f97331191db7e86af98b0e23082ea36863f146e217a5c",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.GLFW.dll": "9c3c71d2fe0b01bb4fd00e7047001b99db8869384b7ba6b9750f389eece224dc",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Input.Common.dll": "4979f2a0afd682e740c247fb103cdd8368d87381728cf633d3bfa4515c0289d1",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Input.Glfw.dll": "43d615b40d28824c7b7eb488e2b891a09ed6353dd3d0d73a366c67abe8b5270e",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Maths.dll": "c3b2b856435a1824f21d0467241f7ef7929980fc11a61d651166ce60828475eb",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.OpenAL.dll": "a0732fd0edef476ba7e488bed19aa7306ccc3b5e5a993809f10ac050694cd40b",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.OpenGL.dll": "65fa25d99f255e459dc4604186ee351a7d9a0d636b4c551bc14cf6c981ad805e",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Vulkan.Extensions.KHR.dll": "be226e227f8695b714db140d5f267760c69b2d64a929b10e3d29d2787dd6edf7",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Vulkan.dll": "5a56f1fe4db712091b6db94e16b6f7e71049027e48f0ee72e001846f1d7a5f45",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Windowing.Common.dll": "7c80870d5135714dc30efa71e4adb0de9a8c699602cd7e5409d6b21eaa5fad21",
+    "/tmp/thsss-hard6-laser-coarse-candidate/Silk.NET.Windowing.Glfw.dll": "62d66480ff7e9973a231c5898e7c293d814558e5e156f59898ba41db2b98f4a8",
+    "/tmp/thsss-hard6-laser-coarse-candidate/SixLabors.Fonts.dll": "3c313956bbce50b6fa3b43491c59f4b33cff21daffee07d968e67ff081218bc5",
+    "/tmp/thsss-hard6-laser-coarse-candidate/SixLabors.ImageSharp.Drawing.dll": "8608dfd9d7cce1d2b58f6ccea8524fb06185ca7f0a05a54d8f89acf89aaf23f2",
+    "/tmp/thsss-hard6-laser-coarse-candidate/SixLabors.ImageSharp.dll": "ac8f584dab33cfdef2e35d776aadfef54292332236d51fc81a88f432ed48842b",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Collections.Immutable.dll": "84ff48bd0a32cc14edf47626d2f29c78c17f6b6e2333740d6eff109440b92711",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Formats.Nrbf.dll": "43317809459b697a847eadf9cde498efce89204f781e0cebe0d5ca7ede18a71b",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.IO.Pipelines.dll": "a86a7e46a2b9f3a1a706d7dc4a3b8068914a27190a3aae8f18dc3f22a79969ff",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Reflection.Metadata.dll": "42464357485f1b78792954969e5d629044cf50380275771883bd6afe6164ff8c",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Resources.Extensions.dll": "4aa3e23bac8b4e00ebc1933c27979eb68b12296784809c40b620cd2afd635260",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Text.Encoding.CodePages.dll": "64de5604505ccdbd14fa8f22db83ca8640fdb252224fd7bb9a2d9ebb33822888",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Text.Encodings.Web.dll": "930baf0ea8e302ae6f339c6c19c4f96d1357a5378e0a90fb5406113fd214763c",
+    "/tmp/thsss-hard6-laser-coarse-candidate/System.Text.Json.dll": "70d7fb8c873eedfa3353e10935620f345cf18b46535393bd7a02de337bd19fa2"
+  },
+  "dll": "/home/ictye/.cache/thsss-hard6-pre-degree-2026/THSSS.dll",
+  "dll_sha256": "a76424c2aaad24ed8e37456cfb8f4f1fcf8637d84ee2cac424e143da0afbeafe",
+  "inputs_sha256": "fead3c1a035e070637efc8ca1c5b4d7b78910e2e64f3a166163769a025ce3158",
+  "native_library": "/home/ictye/.cache/thsss-hard6-pre-degree-2026/libthsss_legacy_math.so",
+  "native_sha256": "2dfe1d9092e7e7077b58b808d1e553c968ed8a4e6330a6494af9988e56bea2b6",
+  "oracle": "Frozen actual woven modern BaseObject.Ctrl; NOT a CLR2 oracle",
+  "outputs": {
+    "software-24.txt.gz": {
+      "gzip_sha256": "fd01fe14b63bdb3b3695be4ea52e8912deb790e1cdaa099e5b33effa95d68ee4",
+      "raw_sha256": "9111dec933ea6fa79270ec1e6f2c4174fd466f29eb1908ecc6691c20765c17e3"
+    },
+    "software-53.txt.gz": {
+      "gzip_sha256": "c70f8557271090d166e909da5ec995ca3221275f95f3954d149bb2c657d734c7",
+      "raw_sha256": "1ed07e7dc21cb1e8ec5a2c3d45890aa3f6115bac8bd270b4e2c5b8dd7b8ff34b"
+    },
+    "x87-24.txt.gz": {
+      "gzip_sha256": "fd01fe14b63bdb3b3695be4ea52e8912deb790e1cdaa099e5b33effa95d68ee4",
+      "raw_sha256": "9111dec933ea6fa79270ec1e6f2c4174fd466f29eb1908ecc6691c20765c17e3"
+    },
+    "x87-53.txt.gz": {
+      "gzip_sha256": "c70f8557271090d166e909da5ec995ca3221275f95f3954d149bb2c657d734c7",
+      "raw_sha256": "1ed07e7dc21cb1e8ec5a2c3d45890aa3f6115bac8bd270b4e2c5b8dd7b8ff34b"
+    }
+  },
+  "probe_sha256": {
+    "Debug": "deca853b5dc19ff465b336c618e06fa5bc0ad89a757f84534f673d2ad854d35b",
+    "Release": "a219d8a5e7d2b12fa2746b0ec4ca9356e0aa0888a52cc060b3cc9b640fa646ac"
+  },
+  "sources": {
+    "DegreeProbe.csproj": "8b11b37f10472abcd9fb280c2dedd900a41aa63a8d4ddd343cc09fc1178ffacb",
+    "Probe.cs": "9b31a201b902b173704febe6b1a66f8d319b242b7196640a67a3164d27037f8f",
+    "cases.py": "009c7eb2033ecf5bd9aa001213957d4f6bcbcb9988b0c9b76af21d961042a9b8",
+    "verify.py": "cfac3ced31a341d6dc5e95eb735afb5a7aabf6304441cdb59fa70b88d2bd716d"
+  }
+}

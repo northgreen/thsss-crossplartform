@@ -31,6 +31,7 @@ Mac 实机采样中主线程约 80.6% 的样本停在 Metal `waitUntilCompleted`
 - Metal 用 RGBA8 存储提供 RGB8 逻辑语义，保证原版 X8R8G8B8 中间目标的 Alpha 为 1：RGB 上传补 1、清屏固定 1、管线屏蔽 Alpha 写入。原 PNG/RGBA 与源 Alpha 混合保留，管线缓存区分逻辑格式；修复半透明场景经 Filter 再次衰减的问题，尚未做 Mac 画面复测。
 - 深度附件尺寸必须匹配目标；外部附件借用，不在Framebuffer销毁时释放；摘除外部附件恢复目标自己的深度。
 - `BeginFrame`/`EndFrame`在提前返回或异常时也配对；原生提交失败保留具体错误信息。
+- OpenGL uniform buffer 仅在完整更新的字节内容完全相同时省略上传，仍执行普通与索引绑定；局部更新使缓存失效，顶点与索引数据不走此缓存。`GraphicsCompatibility/UniformBufferReadback.cs` 读回实际 GPU 数据，覆盖重复/变化/局部更新、独立 buffer、绑定恢复、空更新与释放后调用；不以 CPU 缓存命中替代像素验收。
 - Vulkan acquire只在Success/Suboptimal后等待关联fence，不在Timeout/OutOfDate时等待未提交fence。
 - Metal 为 shader 保留但顶点流未提供的属性绑定 `(0,0,0,1)` 常量流，不能依靠运行时 uniform 分支跳过顶点描述符校验。常量流槽 29、实际顶点槽 30，uniform 槽 0–28。流布局必须有属性引用；完整布局不配置槽 29，缺失布局才配置并绑定常量流，此条件与管线一起缓存。修复针对 Mac 实机反馈的缺失属性错误及无引用槽 29 原生断言，本轮仅静态修改，尚未复测。
 

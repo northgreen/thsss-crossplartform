@@ -1,0 +1,7 @@
+# Exact StraightLaser compatibility fixture (2026)
+
+`python3 tests/testcase/LaserCompatibility/verify.py verify --dll /absolute/path/THSSS.dll` builds only the independent reflection probe, executes actual public virtual `HitCheck` in separate processes, and compares software/x87 × PC24/53 to frozen modern production outputs. It tests 5,000 deterministic cases, including loop endpoints, null/short arrays, exceptional floats, exact contact and adjacent values, negative scales, Int32 Region extremes, hidden getters and unchanged inputs. Single-bit mutations must fail.
+
+`frozen/manifest.json` binds input bytes, expected output bytes, probe/runner sources and the original production assembly/native/dependency identities. Captures are exclusive, never overwritten. Keep the original reference artifact available; do not regenerate expected values from the candidate. These are modern pre-fusion outputs, not authentic CLR2 results.
+
+`NativeChecks/` adds independent raw-operation, host-state and machine-code guards without changing the frozen managed capture sources. Keep additional native test files inside that directory. The candidate retains three binary64 boundaries and Region's binary32 conversion; its sqrt return stays extended. Neither finite samples nor native microbenchmarks establish full historical Replay compatibility, arbitrary concurrent getter mutation equivalence, or stable 60 FPS.

@@ -5,6 +5,19 @@ namespace SlimDX.Compat;
 
 public static partial class LegacyFloat
 {
+    [DllImport(Kernel, EntryPoint = "legacy_laser_point_hit", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    private static extern int LaserPointHitRaw(float x, float y, float targetX1, float targetX2, float targetY1, float targetY2,
+        int targetRegion, float targetScale, float radius, float scaleLength, int bits, out int result);
+
+    /// <summary>Original laser-point graph: sqrt remains extended, with only the three explicit binary64 boundaries.</summary>
+    public static bool LaserPointHit(PointF point, PointF targetX1, PointF targetX2, PointF targetY1, PointF targetY2,
+        int targetRegion, float targetScale, float radius, float scaleLength)
+    {
+        Check(LaserPointHitRaw(point.X, point.Y, targetX1.X, targetX2.X, targetY1.Y, targetY2.Y,
+            targetRegion, targetScale, radius, scaleLength, Precision, out int result));
+        return result != 0;
+    }
+
     [DllImport(Kernel, EntryPoint = "legacy_distance", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     private static extern int DistanceRaw(float px1, float px2, float py1, float py2, float tx, float ty, int bits, out double result);
 

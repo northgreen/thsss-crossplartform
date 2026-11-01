@@ -60,6 +60,8 @@ jobs:
           python-version: '3.12'
       - name: Verify vendor checkout hashes
         run: python tests/testcase/GameplayMath/check_vendor_checkout.py
+      - name: Verify native build command arguments
+        run: python tests/testcase/GameplayMath/check_native_command.py
 
       # Metal shaders are translated once on Linux and shipped inside every macOS
       # package, so end users never need glslangValidator or SPIRV-Cross.
@@ -155,6 +157,8 @@ jobs:
           python-version: '3.12'
       - name: Verify vendor checkout hashes
         run: python tests/testcase/GameplayMath/check_vendor_checkout.py
+      - name: Verify native build command arguments
+        run: python tests/testcase/GameplayMath/check_native_command.py
       - name: Enable LLVM toolchain
         shell: pwsh
         run: |

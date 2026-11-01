@@ -9,8 +9,9 @@
 #endif
 #define BX_CPP_INLINE inline
 #define BX_CONST64(x) UINT64_C(x)
-#define BX_HAVE___BUILTIN_CLZ 0
-#define BX_HAVE_INT128 0
+// Every supported Clang target provides these exact integer primitives.
+#define BX_HAVE___BUILTIN_CLZ 1
+#define BX_HAVE_INT128 1
 using Bit8u = uint8_t;
 using Bit8s = int8_t;
 using Bit16u = uint16_t;

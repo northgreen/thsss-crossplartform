@@ -117,12 +117,15 @@ internal static class SpriteChecks
         if (skipped[2] != 255) throw new Exception("A skipped presentation left the frame open or discarded recorded work.");
         Console.WriteLine("PASS: empty/skipped presentation frames finish safely and EndFrame is idempotent");
         using var font = new SlimDX.Direct3D9.Font(device, new System.Drawing.Font("Arial", 8));
+        // A caller-supplied font sprite follows the same explicit batch contract as every draw above.
+        sprite.Begin(SpriteFlags.AlphaBlend);
         font.DrawString(sprite, "cached", 0, 0, System.Drawing.Color.White);
         var cachedField = typeof(SlimDX.Direct3D9.Font).GetField("_cachedGlyphs", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var glyphs = cachedField.GetValue(font);
         font.DrawString(sprite, "cached", 1, 0, System.Drawing.Color.White);
         if (!ReferenceEquals(glyphs, cachedField.GetValue(font))) throw new Exception("Repeated text at a new position should reuse glyph texture.");
         font.DrawString(sprite, "changed", 1, 0, System.Drawing.Color.Red);
+        sprite.End();
         if (ReferenceEquals(glyphs, cachedField.GetValue(font))) throw new Exception("Changed text/style must invalidate glyph cache.");
         Console.WriteLine("PASS: bounded glyph cache reuses static text and invalidates changed text/style");
         backend.BindFramebuffer(null);

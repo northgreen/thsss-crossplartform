@@ -1,0 +1,65 @@
+{
+  "cases": 5000,
+  "dll": "/tmp/thsss-production-softopt-auto-audit/THSSS.dll",
+  "dll_sha256": "6df271ec740cec0761d371b1651da8e5e58f493f97c85476b4b3fb68c1dfaa2e",
+  "inputs_sha256": "57f38ebdadc5116fc3b0c522b659640a847cc4f39421d2c501b4a7ab1b6701a6",
+  "oracle": "Frozen modern production baseline; not a CLR2 oracle",
+  "outputs": {
+    "software-24.bin.gz": {
+      "gzip_sha256": "3f3b68625b9dcc193c294c211d8be2f92db72d5a8c17721aff8fb536abab7858",
+      "raw_sha256": "84b1ae83aca63fb2cb3449c8d97541ff5192b7aad7ced2b2738bb5207b1dfa4a"
+    },
+    "software-53.bin.gz": {
+      "gzip_sha256": "3f3b68625b9dcc193c294c211d8be2f92db72d5a8c17721aff8fb536abab7858",
+      "raw_sha256": "84b1ae83aca63fb2cb3449c8d97541ff5192b7aad7ced2b2738bb5207b1dfa4a"
+    },
+    "x87-24.bin.gz": {
+      "gzip_sha256": "3f3b68625b9dcc193c294c211d8be2f92db72d5a8c17721aff8fb536abab7858",
+      "raw_sha256": "84b1ae83aca63fb2cb3449c8d97541ff5192b7aad7ced2b2738bb5207b1dfa4a"
+    },
+    "x87-53.bin.gz": {
+      "gzip_sha256": "3f3b68625b9dcc193c294c211d8be2f92db72d5a8c17721aff8fb536abab7858",
+      "raw_sha256": "84b1ae83aca63fb2cb3449c8d97541ff5192b7aad7ced2b2738bb5207b1dfa4a"
+    }
+  },
+  "runtime": {
+    "/tmp/thsss-production-softopt-auto-audit/GameplayMath.Fody.deps.json": "dc7aef4abab4765025db8bd595b37665c523e0adfed6fcb07e7b200b4e79f8e1",
+    "/tmp/thsss-production-softopt-auto-audit/GameplayMath.Fody.dll": "ec834284a6477fee65b4eb298d8c863560446c6f72ad4fca8d236bcc0cd5bd41",
+    "/tmp/thsss-production-softopt-auto-audit/INIFileParser.dll": "f81ba0dd987d46a67b1879ef4ee11c14f32940ff211eace347a68e42bf272554",
+    "/tmp/thsss-production-softopt-auto-audit/Microsoft.DotNet.PlatformAbstractions.dll": "b1f4ad169fb192747f5d2d3111c01db4257e3ec1f7f18f301f7fc4be3b869ff3",
+    "/tmp/thsss-production-softopt-auto-audit/Microsoft.Extensions.DependencyModel.dll": "ba04fca7b32356c10b3d23c3c76210fbad6aceb2ebcb03da8315b6857168aa89",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Core.dll": "56e4a018bd9a4e0fb94f97331191db7e86af98b0e23082ea36863f146e217a5c",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.GLFW.dll": "9c3c71d2fe0b01bb4fd00e7047001b99db8869384b7ba6b9750f389eece224dc",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Input.Common.dll": "4979f2a0afd682e740c247fb103cdd8368d87381728cf633d3bfa4515c0289d1",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Input.Glfw.dll": "43d615b40d28824c7b7eb488e2b891a09ed6353dd3d0d73a366c67abe8b5270e",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Maths.dll": "c3b2b856435a1824f21d0467241f7ef7929980fc11a61d651166ce60828475eb",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.OpenAL.dll": "a0732fd0edef476ba7e488bed19aa7306ccc3b5e5a993809f10ac050694cd40b",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.OpenGL.dll": "65fa25d99f255e459dc4604186ee351a7d9a0d636b4c551bc14cf6c981ad805e",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Vulkan.Extensions.KHR.dll": "be226e227f8695b714db140d5f267760c69b2d64a929b10e3d29d2787dd6edf7",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Vulkan.dll": "5a56f1fe4db712091b6db94e16b6f7e71049027e48f0ee72e001846f1d7a5f45",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Windowing.Common.dll": "7c80870d5135714dc30efa71e4adb0de9a8c699602cd7e5409d6b21eaa5fad21",
+    "/tmp/thsss-production-softopt-auto-audit/Silk.NET.Windowing.Glfw.dll": "62d66480ff7e9973a231c5898e7c293d814558e5e156f59898ba41db2b98f4a8",
+    "/tmp/thsss-production-softopt-auto-audit/SixLabors.Fonts.dll": "3c313956bbce50b6fa3b43491c59f4b33cff21daffee07d968e67ff081218bc5",
+    "/tmp/thsss-production-softopt-auto-audit/SixLabors.ImageSharp.Drawing.dll": "8608dfd9d7cce1d2b58f6ccea8524fb06185ca7f0a05a54d8f89acf89aaf23f2",
+    "/tmp/thsss-production-softopt-auto-audit/SixLabors.ImageSharp.dll": "ac8f584dab33cfdef2e35d776aadfef54292332236d51fc81a88f432ed48842b",
+    "/tmp/thsss-production-softopt-auto-audit/System.Collections.Immutable.dll": "84ff48bd0a32cc14edf47626d2f29c78c17f6b6e2333740d6eff109440b92711",
+    "/tmp/thsss-production-softopt-auto-audit/System.Formats.Nrbf.dll": "43317809459b697a847eadf9cde498efce89204f781e0cebe0d5ca7ede18a71b",
+    "/tmp/thsss-production-softopt-auto-audit/System.IO.Pipelines.dll": "a86a7e46a2b9f3a1a706d7dc4a3b8068914a27190a3aae8f18dc3f22a79969ff",
+    "/tmp/thsss-production-softopt-auto-audit/System.Reflection.Metadata.dll": "42464357485f1b78792954969e5d629044cf50380275771883bd6afe6164ff8c",
+    "/tmp/thsss-production-softopt-auto-audit/System.Resources.Extensions.dll": "4aa3e23bac8b4e00ebc1933c27979eb68b12296784809c40b620cd2afd635260",
+    "/tmp/thsss-production-softopt-auto-audit/System.Text.Encoding.CodePages.dll": "64de5604505ccdbd14fa8f22db83ca8640fdb252224fd7bb9a2d9ebb33822888",
+    "/tmp/thsss-production-softopt-auto-audit/System.Text.Encodings.Web.dll": "930baf0ea8e302ae6f339c6c19c4f96d1357a5378e0a90fb5406113fd214763c",
+    "/tmp/thsss-production-softopt-auto-audit/System.Text.Json.dll": "70d7fb8c873eedfa3353e10935620f345cf18b46535393bd7a02de337bd19fa2",
+    "/tmp/thsss-production-softopt-auto-audit/THSSS.deps.json": "88dbc5a87357cf061bc1d6d9971b46b093b1265dd84e1575a2d7e0edf53a9d3e",
+    "/tmp/thsss-production-softopt-auto-audit/THSSS.dll": "6df271ec740cec0761d371b1651da8e5e58f493f97c85476b4b3fb68c1dfaa2e",
+    "/tmp/thsss-production-softopt-auto-audit/THSSS.math-mode.json": "9ffb98a87f97edbdf1a86cbf2e3bc15ac65a2f46ddbb0346f95c6cf72b462d97",
+    "/tmp/thsss-production-softopt-auto-audit/THSSS.runtimeconfig.json": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "/tmp/thsss-production-softopt-auto-audit/libthsss_legacy_math.so": "04c6bbce9b31303a6f9109e8dcca45be027463b9c45ea633c0a7c037c2433cff"
+  },
+  "sources": {
+    "LaserProbe.csproj": "8b11b37f10472abcd9fb280c2dedd900a41aa63a8d4ddd343cc09fc1178ffacb",
+    "Probe.cs": "1e76812a2453da8b7e8908310aa1011286f6e752304832fb4f7eb21b5256714e",
+    "cases.py": "76de0c83d5d7c58fd90a99a436b43ecf1a5b55fa1144bdd7f891ca0641686bfd",
+    "verify.py": "e13be31551b622fc87b776c7dba6ef23f9c4c2ac50ea0fd9a640e490cdc34aa7"
+  }
+}

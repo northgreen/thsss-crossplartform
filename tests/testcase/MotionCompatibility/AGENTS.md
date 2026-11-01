@@ -1,0 +1,6 @@
+# Motion compatibility gates (2026)
+
+- `python3 tests/testcase/MotionCompatibility/run.py verify --game /absolute/THSSS.dll` compares actual public Move/Position behavior with the immutable pre-optimization modern-production oracle. This is not a CLR2 capture; use GameplayMath golden checks separately. Both backend/precision combinations are checked; use an auto build to permit forced x87 and software within the same fixture.
+- `run.py`, `Cases.cs`, `Program.cs` and the project are hash-bound by the capture manifest. Do not regenerate the baseline or alter this capture environment to accept optimized results. Keep unrelated Python tools below a subdirectory: the legacy verifier intentionally inventories top-level Python/C# fixture sources.
+- `python3 tests/testcase/MotionCompatibility/NativeChecks/run.py --library /absolute/libthsss_legacy_math.so --report /tmp/motion-native.json` runs the independent raw-operation oracle and dirty-stack/state/error gates. Native C++ fixtures remain at suite root; the separate runner lives under NativeChecks so it does not contaminate the frozen managed-fixture inventory.
+- Native microbenchmarks require explicit `--benchmark` and never substitute for Replay timing. Full Replay comparisons align by consumed key offsets, preserve core/RNG hashes and no-miss, and do not modify player data.

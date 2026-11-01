@@ -17,7 +17,8 @@
     <LegacyMathLibraryName Condition="$([System.String]::Copy('$(LegacyMathRid)').StartsWith('osx-'))">libthsss_legacy_math.dylib</LegacyMathLibraryName>
     <LegacyMathIntermediateRoot Condition="$([System.IO.Path]::IsPathRooted('$(BaseIntermediateOutputPath)'))">$(BaseIntermediateOutputPath)</LegacyMathIntermediateRoot>
     <LegacyMathIntermediateRoot Condition="'$(LegacyMathIntermediateRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(BaseIntermediateOutputPath)'))</LegacyMathIntermediateRoot>
-    <LegacyMathOutputDirectory>$([System.IO.Path]::GetFullPath('$(LegacyMathIntermediateRoot)/$(Configuration)/$(TargetFramework)/$(LegacyMathRid)/legacy-math/'))</LegacyMathOutputDirectory>
+    <!-- A trailing Windows backslash would escape the closing quote in Exec's Python argument. -->
+    <LegacyMathOutputDirectory>$([System.IO.Path]::GetFullPath('$(LegacyMathIntermediateRoot)/$(Configuration)/$(TargetFramework)/$(LegacyMathRid)/legacy-math'))</LegacyMathOutputDirectory>
     <LegacyMathLibraryPath>$([System.IO.Path]::Combine('$(LegacyMathOutputDirectory)', '$(LegacyMathLibraryName)'))</LegacyMathLibraryPath>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' != ''">

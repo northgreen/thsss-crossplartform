@@ -79,7 +79,7 @@ def sources():
         raise InvalidManifest("Duplicate translation unit")
     for name in closure:
         if name not in entries and name not in (
-            "software_x87.cpp", "hardware_x87.cpp", "legacy_dispatch.cpp", "native_geometry.cpp", "native_ellipse.cpp", "native_motion.cpp", "memory.cpp"
+            "software_x87.cpp", "hardware_x87.cpp", "legacy_dispatch.cpp", "native_geometry.cpp", "native_ellipse.cpp", "native_motion.cpp", "native_laser.cpp", "native_control.cpp", "memory.cpp"
         ):
             raise InvalidManifest(f"Uninventoried translation unit: {name}")
     return [source_path(name) for name in closure]
@@ -97,6 +97,8 @@ def link_command(kind, linker, triple, objects, output, temporary):
             "/dll",
             "/noentry",
             "/nodefaultlib",
+            # Preserve the CRT marker through LTO's internalization pass.
+            "/include:_fltused",
             "/Brepro",
             "/timestamp:0",
             "/opt:ref",
@@ -173,6 +175,7 @@ def build(rid, directory):
         "--target=" + triple,
         "-std=c++17",
         "-O2",
+        "-flto=thin",
         "-ffreestanding",
         "-nostdinc++",
         "-fno-exceptions",
@@ -192,6 +195,8 @@ def build(rid, directory):
         "-ffile-prefix-map=" + str(ROOT) + "=.",
         "-Werror=date-time",
     ]
+    if kind == "elf":
+        flags += ["-fno-semantic-interposition"]
     if kind != "coff":
         flags += ["-fPIC"]
     includes = [

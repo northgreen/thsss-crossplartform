@@ -115,9 +115,16 @@ public class BaseObject_CS : BaseObject
 
 	public override void Ctrl()
 	{
+#if THSSS_MATH_OFF
 		double num = AccDirection / 180.0 * Math.PI;
 		base.Ax = AccelerateCS * (float)Math.Cos(num);
 		base.Ay = AccelerateCS * (float)Math.Sin(num);
+#else
+		// Separate captures retain both script reads; active-stage ownership guards their observation window.
+		PointF acceleration = SlimDX.Compat.LegacyFloat.ScriptAcceleration(AccDirection, AccelerateCS, AccelerateCS);
+		base.Ax = acceleration.X;
+		base.Ay = acceleration.Y;
+#endif
 		EventCtrl();
 		base.Ctrl();
 	}

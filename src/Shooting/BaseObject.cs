@@ -1037,8 +1037,14 @@ public class BaseObject
 			Direction = Math.Atan2((double)num2 * Math.Sin(num) + (double)Ay, (double)num2 * Math.Cos(num) + (double)Ax);
 		}
 		Velocity += Accelerate;
+#if THSSS_MATH_OFF
 		AngleDegree += AngularVelocityDegree;
 		DirectionDegree += DirectionVelocityDegree;
+#else
+		// Keep each normalization before capturing the next field/rate pair.
+		Angle = SlimDX.Compat.LegacyFloat.DegreeIncrement(Angle, AngularVelocityDegree);
+		Direction = SlimDX.Compat.LegacyFloat.DegreeIncrement(Direction, DirectionVelocityDegree);
+#endif
 		TransparentValueF += TransparentVelocity;
 		ScaleLength += ScaleVL;
 		ScaleWidth += ScaleVW;

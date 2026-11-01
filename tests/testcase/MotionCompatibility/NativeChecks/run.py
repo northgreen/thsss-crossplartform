@@ -42,7 +42,7 @@ def main():
         parser.error("--library must name an existing regular file")
     if args.report and args.report.resolve() == library:
         parser.error("--report must not overwrite the supplied library")
-    fixtures = Path(__file__).resolve().parent
+    fixtures = Path(__file__).resolve().parent.parent
     report = {
         "library": str(library),
         "sha256_before": sha256(library),

@@ -17,13 +17,14 @@ if (module.AssemblyReferences.Any(r => r.Name == "OwnershipProbe")) throw new In
 var types = AllTypes(module.Types).ToArray();
 var baseObject = types.Single(t => t.FullName == "Shooting.BaseObject");
 var stageData = types.Single(t => t.FullName == "Shooting.StageDataPackage");
-string[] required = { "<OriginalPosition>k__BackingField", "<StageData>k__BackingField", "<Time>k__BackingField", "velocity", "direction", "angle", "angleWithDirection", "region", "scaleLength", "scaleWidth", "scaleX", "scaleY" };
-var fields = required.Select(name => baseObject.Fields.Single(f => f.Name == name)).Append(stageData.Fields.Single(f => f.Name == "BoundRect")).ToDictionary(f => f.FullName);
+var scriptObject = types.Single(t => t.FullName == "Shooting.BaseObject_CS");
+var fields = SelectFields(baseObject, scriptObject, stageData);
 var guardWrite = module.ImportReference(typeof(OwnershipProbe).GetMethod(nameof(OwnershipProbe.GuardWrite))!);
 var guardCall = module.ImportReference(typeof(OwnershipProbe).GetMethod(nameof(OwnershipProbe.GuardCall))!);
 var enterFrame = module.ImportReference(typeof(OwnershipProbe).GetMethod(nameof(OwnershipProbe.EnterFrame))!);
 var sites = new List<object>();
 var addressGaps = new List<string>();
+var addressExclusions = new List<object>();
 int writeCount = 0, callCount = 0, frameHooks = 0;
 foreach (var method in types.SelectMany(t => t.Methods).Where(m => m.HasBody))
 {
@@ -41,6 +42,8 @@ foreach (var method in types.SelectMany(t => t.Methods).Where(m => m.HasBody))
             bool equals = IsRectangleEquals(instruction);
             readOnly |= equals;
             operation += equals ? ":readonly-rectangle-equals-exact-pattern" : readOnly ? ":readonly-immediate-getter" : ":UNCLASSIFIED";
+            if (readOnly) addressExclusions.Add(new { field = field.FullName, site,
+                reason = equals ? "Exact boxed Rectangle.Equals pattern only reads the selected storage." : "Immediate System.Drawing value getter only reads the selected storage." });
             if (!readOnly)
             {
                 var context = new List<string>();
@@ -48,6 +51,8 @@ foreach (var method in types.SelectMany(t => t.Methods).Where(m => m.HasBody))
                 addressGaps.Add(site + " " + field.FullName + " :: " + string.Join(" | ", context));
             }
         }
+        if (instruction.OpCode != OpCodes.Ldfld && instruction.OpCode != OpCodes.Stfld && instruction.OpCode != OpCodes.Ldflda)
+            addressGaps.Add(site + " " + field.FullName + " unsupported field operation: " + operation);
         sites.Add(new { operation, field = field.FullName, site });
         if (instruction.OpCode != OpCodes.Stfld) continue;
         InjectWrite(method, instruction, field, site);
@@ -89,7 +94,7 @@ foreach (var method in game.Methods.Where(m => m.HasBody && !m.IsStatic))
 string manifest = output + ".ownership-manifest.json";
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 File.WriteAllText(manifest, JsonSerializer.Serialize(new { input, inputSha256, output, fields = fields.Keys.Order().ToArray(), writeCount, callCount, frameHooks,
-    addressGaps, sites, scope = "Whole module field instructions; BaseObject and derived Move/HitCheck entries including BaseObject targets; current PresentState at MainProcess entry, state reassignment and update/render dispatch." }, new JsonSerializerOptions { WriteIndented = true }));
+    addressGaps, addressExclusions, sites, scope = "Whole module field instructions; BaseObject and derived Move/HitCheck entries including BaseObject targets; current PresentState at MainProcess entry, state reassignment and update/render dispatch." }, new JsonSerializerOptions { WriteIndented = true }));
 if (addressGaps.Count > 0 || writeCount == 0 || callCount == 0 || frameHooks < 3)
     throw new InvalidDataException("Incomplete ownership instrumentation; inspect " + manifest);
 if (Fingerprint(input) != inputSha256) throw new IOException("Input assembly changed during instrumentation.");
@@ -150,6 +155,35 @@ static bool IsRectangleEquals(Instruction address)
 
 internal static partial class Instrumentation
 {
+    internal static Dictionary<string, FieldDefinition> SelectFields(TypeDefinition baseObject, TypeDefinition scriptObject, TypeDefinition stageData)
+    {
+        // Acceleration fusion advances a pure getter across Ax's write; inputs and outputs share active-stage ownership.
+        (string Name, string Type)[] required = {
+            ("<OriginalPosition>k__BackingField", "System.Drawing.PointF"),
+            ("<StageData>k__BackingField", "Shooting.StageDataPackage"), ("<Time>k__BackingField", "System.Int32"),
+            ("<AngularVelocityDegree>k__BackingField", "System.Single"), ("<DirectionVelocityDegree>k__BackingField", "System.Single"),
+            ("<Ax>k__BackingField", "System.Single"), ("<Ay>k__BackingField", "System.Single"),
+            ("velocity", "System.Single"), ("direction", "System.Double"), ("angle", "System.Double"),
+            ("angleWithDirection", "System.Boolean"), ("region", "System.Int32"), ("scaleLength", "System.Single"),
+            ("scaleWidth", "System.Single"), ("scaleX", "System.Single"), ("scaleY", "System.Single")
+        };
+        if (baseObject.FullName != "Shooting.BaseObject" || scriptObject.FullName != "Shooting.BaseObject_CS"
+            || stageData.FullName != "Shooting.StageDataPackage")
+            throw new InvalidDataException("Unexpected declaring type for required ownership storage.");
+        return required.Select(spec => RequiredField(baseObject, spec.Name, spec.Type))
+            .Append(RequiredField(scriptObject, "<AccDirection>k__BackingField", "System.Double"))
+            .Append(RequiredField(scriptObject, "<AccelerateCS>k__BackingField", "System.Single"))
+            .Append(RequiredField(stageData, "BoundRect", "System.Drawing.Rectangle")).ToDictionary(field => field.FullName);
+    }
+
+    private static FieldDefinition RequiredField(TypeDefinition type, string name, string expectedType)
+    {
+        var matches = type.Fields.Where(field => field.Name == name).ToArray();
+        if (matches.Length != 1 || matches[0].IsStatic || matches[0].FieldType.FullName != expectedType)
+            throw new InvalidDataException($"Required ownership field {type.FullName}::{name} must be one instance {expectedType} field.");
+        return matches[0];
+    }
+
     internal static void ExpandBranches(MethodDefinition method)
     {
         foreach (var instruction in method.Body.Instructions.Where(i => i.OpCode.OperandType == OperandType.ShortInlineBrTarget))
