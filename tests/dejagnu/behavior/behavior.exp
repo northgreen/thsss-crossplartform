@@ -20,6 +20,7 @@ thsss_run TextScreenshotCompatibility [thsss_dotnet_run TextScreenshotCompatibil
 # real quit), so it needs several minutes on a loaded machine.
 thsss_run WindowInputCompatibility    [thsss_dotnet_run WindowInputCompatibility --glfw --game-smoke] {PASS WindowInputCompatibility} 0 300
 thsss_run ConfigCompatibility         [thsss_dotnet_run ConfigCompatibility]         {PASS ConfigCompatibility}        0 45
+thsss_run BuildWarningCompatibility   [thsss_dotnet_run BuildWarningCompatibility]   {PASS BuildWarningCompatibility}  0 45
 
 # The resize fixture needs an isolated data root and runs once per renderer, so the
 # player's own save files are never touched. It drives the real game loop, which needs

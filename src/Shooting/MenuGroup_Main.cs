@@ -37,7 +37,6 @@ internal class MenuGroup_Main : BaseMenuGroup
 			menuItem.Position = new PointF(num + num3, 140f);
 			menuItem.DestPoint = new PointF(num, num2);
 			num2 += 24;
-			num = num;
 			num3 -= 50;
 			menuItem.AngleDegree = 0.0;
 		}

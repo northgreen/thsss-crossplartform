@@ -6,6 +6,8 @@
 
 发布内容引用 `../game/{FX,Model,Image,BGM,Sound,Story,CS,BPic}` 与初始Setting.INI；不发布Score.dat、Replay或ScreenShot。旧实现对照在 `../reference/decompiled/`。
 
+兼容层直接使用 BCL 的 `System.ComponentModel` 类型，不重复声明 Component/IContainer 等类型。项目使用 nullable annotations（不打开旧代码的流分析）；设计器占位事件保存订阅但不新增触发行为，真实输入仍由 Dispatch 路径发送。未被 ResourceManager 访问的旧 `Shooting/Properties/Resources.resx` 不参与编译；主窗体资源清单独立保留。`BuildWarningCompatibility` 已纳入行为回归，验证事件订阅/退订、实际分派和类型/资源边界。
+
 ## 配置程序 `Config/`
 
 `src/Config/THSSS.Config.csproj` 是原版 `Config.exe` 的跨平台替代（Avalonia 11，net8.0 / net10.0，输出名 `Config`）。项目共用根 `TargetFrameworks.props`，SDK 8 仅启用 net8.0，SDK 10 启用双目标。仅改动 `game/Setting.INI` 中原对话框拥有的键：`[Key]` 七项、`[DirectX]` 的 VerticalSync/FullWindow、`[Mode]` 的 PresentInterval、`[DirectInput]` 的 UseDirectInput、`[JoyStick]` 五项、`[Game]` 的 FontType。不要在这里加入音量、Clear、渲染器开关等原对话框不写的键。

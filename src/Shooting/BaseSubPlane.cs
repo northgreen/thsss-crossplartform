@@ -25,7 +25,6 @@ public class BaseSubPlane : BaseObject
 	{
 		base.Ctrl();
 		_ = base.DestPoint;
-		bool flag = 1 == 0;
 		MoveToPoint(base.DestPoint);
 	}
 

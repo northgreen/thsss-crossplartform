@@ -1,5 +1,6 @@
 // WinForms stubs for cross-platform compatibility (single source of truth)
 using System;
+using System.ComponentModel;
 
 namespace System.Windows.Forms
 {
@@ -117,6 +118,9 @@ namespace System.Windows.Forms
     public class Control : IDisposable
     {
         private bool _disposed;
+        // Designer-only events retain subscriptions without inventing new runtime dispatch.
+        private EventHandlerList _compatibilityEvents;
+        protected EventHandlerList CompatibilityEvents => _compatibilityEvents ??= new EventHandlerList();
 
         public string Name { get; set; }
         public virtual string Text { get; set; }
@@ -210,35 +214,35 @@ namespace System.Windows.Forms
         }
         public void DispatchPaint() => Paint?.Invoke(this, new PaintEventArgs(null, System.Drawing.Rectangle.Empty));
 
-        public event EventHandler Click;
-        public event EventHandler DoubleClick;
-        public event EventHandler MouseEnter;
-        public event EventHandler MouseLeave;
+        public event EventHandler Click { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(Click), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(Click), value); }
+        public event EventHandler DoubleClick { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(DoubleClick), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(DoubleClick), value); }
+        public event EventHandler MouseEnter { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(MouseEnter), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(MouseEnter), value); }
+        public event EventHandler MouseLeave { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(MouseLeave), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(MouseLeave), value); }
         public event MouseEventHandler MouseMove;
         public event MouseEventHandler MouseDown;
         public event MouseEventHandler MouseUp;
-        public event MouseEventHandler MouseWheel;
+        public event MouseEventHandler MouseWheel { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(MouseWheel), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(MouseWheel), value); }
         public event KeyEventHandler KeyDown;
         public event KeyEventHandler KeyUp;
-        public event KeyPressEventHandler KeyPress;
+        public event KeyPressEventHandler KeyPress { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(KeyPress), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(KeyPress), value); }
         public event PaintEventHandler Paint;
         public event EventHandler Resize;
-        public event EventHandler Move;
-        public event EventHandler GotFocus;
-        public event EventHandler LostFocus;
-        public event EventHandler EnabledChanged;
-        public event EventHandler VisibleChanged;
-        public event EventHandler TextChanged;
+        public event EventHandler Move { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(Move), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(Move), value); }
+        public event EventHandler GotFocus { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(GotFocus), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(GotFocus), value); }
+        public event EventHandler LostFocus { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(LostFocus), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(LostFocus), value); }
+        public event EventHandler EnabledChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(EnabledChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(EnabledChanged), value); }
+        public event EventHandler VisibleChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(VisibleChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(VisibleChanged), value); }
+        public event EventHandler TextChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(TextChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(TextChanged), value); }
         public event EventHandler SizeChanged;
-        public event EventHandler LocationChanged;
-        public event EventHandler BackColorChanged;
-        public event EventHandler ForeColorChanged;
-        public event EventHandler FontChanged;
-        public event EventHandler ParentChanged;
-        public event EventHandler HandleCreated;
-        public event EventHandler HandleDestroyed;
-        public event EventHandler Disposed;
-        public event EventHandler Load;
+        public event EventHandler LocationChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(LocationChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(LocationChanged), value); }
+        public event EventHandler BackColorChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(BackColorChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(BackColorChanged), value); }
+        public event EventHandler ForeColorChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(ForeColorChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(ForeColorChanged), value); }
+        public event EventHandler FontChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(FontChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(FontChanged), value); }
+        public event EventHandler ParentChanged { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(ParentChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(ParentChanged), value); }
+        public event EventHandler HandleCreated { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(HandleCreated), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(HandleCreated), value); }
+        public event EventHandler HandleDestroyed { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(HandleDestroyed), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(HandleDestroyed), value); }
+        public event EventHandler Disposed { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(Disposed), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(Disposed), value); }
+        public event EventHandler Load { add => CompatibilityEvents.AddHandler(nameof(Control) + "." + nameof(Load), value); remove => CompatibilityEvents.RemoveHandler(nameof(Control) + "." + nameof(Load), value); }
     }
 
     public class ControlCollection
@@ -306,7 +310,7 @@ namespace System.Windows.Forms
         public event FormClosingEventHandler FormClosing;
         public event FormClosingEventHandler FormClosingEx;
         public event EventHandler FormClosed;
-        public event EventHandler Shown;
+        public event EventHandler Shown { add => CompatibilityEvents.AddHandler(nameof(Form) + "." + nameof(Shown), value); remove => CompatibilityEvents.RemoveHandler(nameof(Form) + "." + nameof(Shown), value); }
         public event EventHandler Activated;
         public event EventHandler Deactivate;
     }
@@ -377,7 +381,7 @@ namespace System.Windows.Forms
         public bool FormattingEnabled { get; set; }
         public object SelectedItem { get; set; }
         public int SelectedIndex { get; set; }
-        public event EventHandler SelectedIndexChanged;
+        public event EventHandler SelectedIndexChanged { add => CompatibilityEvents.AddHandler(nameof(ListControl) + "." + nameof(SelectedIndexChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(ListControl) + "." + nameof(SelectedIndexChanged), value); }
     }
 
     public class CommonDialog
@@ -424,7 +428,7 @@ namespace System.Windows.Forms
         public decimal Increment { get; set; }
         public int DecimalPlaces { get; set; }
         public bool ReadOnly { get; set; }
-        public event EventHandler ValueChanged;
+        public event EventHandler ValueChanged { add => CompatibilityEvents.AddHandler(nameof(NumericUpDown) + "." + nameof(ValueChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(NumericUpDown) + "." + nameof(ValueChanged), value); }
     }
 
     public class CheckBox : ButtonBase
@@ -432,7 +436,7 @@ namespace System.Windows.Forms
         public bool Checked { get; set; }
         public CheckState CheckState { get; set; }
         public bool AutoCheck { get; set; }
-        public event EventHandler CheckedChanged;
+        public event EventHandler CheckedChanged { add => CompatibilityEvents.AddHandler(nameof(CheckBox) + "." + nameof(CheckedChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(CheckBox) + "." + nameof(CheckedChanged), value); }
     }
 
     public enum CheckState { Unchecked = 0, Checked = 1, Indeterminate = 2 }
@@ -446,7 +450,7 @@ namespace System.Windows.Forms
         public ComboBoxStyle DropDownStyle { get; set; }
         public void BeginUpdate() { }
         public void EndUpdate() { }
-        public event EventHandler SelectedIndexChanged;
+        public event EventHandler SelectedIndexChanged { add => CompatibilityEvents.AddHandler(nameof(ComboBox) + "." + nameof(SelectedIndexChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(ComboBox) + "." + nameof(SelectedIndexChanged), value); }
     }
 
     public enum ComboBoxStyle { Simple = 0, DropDown = 1, DropDownList = 2 }
@@ -458,7 +462,7 @@ namespace System.Windows.Forms
         public void BeginUpdate() { }
         public void EndUpdate() { }
         public void ClearSelected() { }
-        public event EventHandler SelectedIndexChanged;
+        public event EventHandler SelectedIndexChanged { add => CompatibilityEvents.AddHandler(nameof(ListBox) + "." + nameof(SelectedIndexChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(ListBox) + "." + nameof(SelectedIndexChanged), value); }
     }
 
     public class ListView : Control
@@ -475,7 +479,7 @@ namespace System.Windows.Forms
         public TreeNode SelectedNode { get; set; }
         public void ExpandAll() { }
         public void CollapseAll() { }
-        public event EventHandler AfterSelect;
+        public event EventHandler AfterSelect { add => CompatibilityEvents.AddHandler(nameof(TreeView) + "." + nameof(AfterSelect), value); remove => CompatibilityEvents.RemoveHandler(nameof(TreeView) + "." + nameof(AfterSelect), value); }
     }
 
     public class TreeNodeCollection
@@ -500,8 +504,8 @@ namespace System.Windows.Forms
     }
 
     public class ProgressBar : Control { public int Value { get; set; } public int Minimum { get; set; } public int Maximum { get; set; } }
-    public class TrackBar : Control { public int Value { get; set; } public int Minimum { get; set; } public int Maximum { get; set; } public event EventHandler ValueChanged; }
-    public class ScrollBar : Control { public int Value { get; set; } public int Minimum { get; set; } public int Maximum { get; set; } public event EventHandler Scroll; }
+    public class TrackBar : Control { public int Value { get; set; } public int Minimum { get; set; } public int Maximum { get; set; } public event EventHandler ValueChanged { add => CompatibilityEvents.AddHandler(nameof(TrackBar) + "." + nameof(ValueChanged), value); remove => CompatibilityEvents.RemoveHandler(nameof(TrackBar) + "." + nameof(ValueChanged), value); } }
+    public class ScrollBar : Control { public int Value { get; set; } public int Minimum { get; set; } public int Maximum { get; set; } public event EventHandler Scroll { add => CompatibilityEvents.AddHandler(nameof(ScrollBar) + "." + nameof(Scroll), value); remove => CompatibilityEvents.RemoveHandler(nameof(ScrollBar) + "." + nameof(Scroll), value); } }
     public class HScrollBar : ScrollBar { }
     public class VScrollBar : ScrollBar { }
 
@@ -520,9 +524,11 @@ namespace System.Windows.Forms
 
     public class Timer : IDisposable
     {
+        private EventHandlerList _compatibilityEvents;
+        private EventHandlerList CompatibilityEvents => _compatibilityEvents ??= new EventHandlerList();
         public int Interval { get; set; }
         public bool Enabled { get; set; }
-        public event EventHandler Tick;
+        public event EventHandler Tick { add => CompatibilityEvents.AddHandler(nameof(Timer) + "." + nameof(Tick), value); remove => CompatibilityEvents.RemoveHandler(nameof(Timer) + "." + nameof(Tick), value); }
         public void Start() { Enabled = true; }
         public void Stop() { Enabled = false; }
         public void Dispose() { }

@@ -6,7 +6,8 @@
     <RootNamespace>Shooting</RootNamespace>
     <AssemblyName>THSSS</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Nullable>disable</Nullable>
+    <!-- Keep legacy flow analysis disabled while honoring platform API annotations. -->
+    <Nullable>annotations</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <FodyGenerateXsd>false</FodyGenerateXsd>
@@ -33,7 +34,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Shooting/RenderForm_Main.resx"><LogicalName>Shooting.RenderForm_Main.resources</LogicalName></EmbeddedResource>
-    <EmbeddedResource Update="Shooting/Properties/Resources.resx"><LogicalName>Shooting.Properties.Resources.resources</LogicalName></EmbeddedResource>
+    <!-- These legacy designer bitmaps have no ResourceManager consumer; Resources.cs
+         supplies the compatibility properties. Do not compile unused NRBF payloads. -->
+    <EmbeddedResource Remove="Shooting/Properties/Resources.resx" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Silk.NET" Version="2.23.0" />
@@ -44,7 +47,6 @@
     <PackageReference Include="Silk.NET.Vulkan" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.23.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
-    <PackageReference Include="ini-parser" Version="2.5.2" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
     <PackageReference Include="System.Resources.Extensions" Version="10.0.13" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.13" />
