@@ -15,3 +15,7 @@ game/Source.dat.bak
 game/Replay/*.rpy
 game/Replay/*.rpy
 game/Replay-1/*.rpy
+
+# nix build output links
+/result
+/result-*
