@@ -1,95 +1,82 @@
-# 原作行为一致性（2026-10-25）
+# 游戏行为兼容（2026）
 
-本文件是行为一致性的当前实现与验收记录。
+## 输入与窗口
 
-关卡难度、子弹公式、碰撞半径与随机数算法与原版一致，未做改动。`Score.dat`、录像与配置的测试一律使用临时目录。
+真实窗口事件统一进入 `WindowInputBridge`。 `UseDirectInput=0` 转发 Control 事件；
+值为 1 时使用输入快照。两种模式均读取配置键名。 Enter 与 KeypadEnter 按转换后的键聚合。
 
-## 行为约定
+失焦触发原 Activated/Deactivate 流程， 释放事件和快照中的按键，忽略后台新按下。
+键盘与手柄可混用，设备连接、轴和按钮通过兼容层。 Linux 按 capabilities 过滤伪手柄设备。
 
-| 项 | 当前实现 | 验收证据 |
-|---|---|---|
-| 1 音频区间/循环 | `AudioPlayback.cs` 将PlayBegin/Length与LoopBegin/Length/Count映射为样本时间线；支持有限/无限循环，最多四个原生缓冲区、定时补充，不展开无穷PCM | 真实AL游标及OpenAL Soft loopback，非零起点、精确有限循环2200帧结束、无限循环有界队列 |
-| 2 暂停恢复 | SourceVoice.Stop暂停而非SourceStop重置；Start续播，Flush单独清空 | 暂停样本游标3292，恢复5409，不归零；循环段也覆盖 |
-| 3 声像/音量 | PCM输出矩阵与独立AL Gain分开；mono左右、stereo交换/交叉/负系数；实时改变矩阵保留已消费位置 | loopback验证左右、静音、独立gain及动态更新，不再把0.2改成1 |
-| 4 两输入模式 | 真实窗口事件统一进入WindowInputBridge；UseDirectInput=0转发原Control事件，=1创建快照；两路径使用配置键名 | 两模式完整游戏进程、自定义WASD/J/K与Enter退出；Enter/KeypadEnter别名按转换后键聚合 |
-| 5 退出 | Form.Close/事件改为虚方法并桥接唯一真实IWindow；执行保存、关闭录像与资源释放 | 两模式菜单Quit及Alt+F4三个进程退出码均0，不依赖timeout强杀；脚本注入关闭后不再调用已释放MainProcess |
-| 6 焦点 | 真实FocusChanged触发原Activated/Deactivate；失焦释放事件与快照、忽略后台新按下 | 假后端验证暂停请求、持键切出/释放/切回无粘键；实际桌面快捷键体验仍需真人验证 |
-| 7 列表顺序 | `ListCompat.LegacyItems`实时索引替代错误Snapshot；原ForEach改写的事件、碰撞、背景、粒子、剧情等调用点统一使用；迁移脚本同步 | 五种增删/赋值，真实Execution自删跳过左移项、下一帧推进，真实背景移除/同轮生成；无列表版本异常 |
-| 8 字体 | DX Font.MeasureString/DrawText/DrawString使用与Graphics绘字相同的字体解析和单位；临时纹理释放前刷新批次 | 中文测宽1093×18，限宽160×112；真实StoryBox完整文字5行不丢字；直接绘字504个可见像素 |
-| 9 手柄 | Silk设备连接/断开、轴与按钮桥接DirectInput兼容枚举；键盘/手柄混合；Linux按capabilities过滤被GLFW误识别的触摸板/鼠标 | 设备热插拔假后端、原轴阈值和配置按钮测试；当前机器GLFW原始枚举16设备，过滤后双模式菜单不再被虚假方向驱动；无实体手柄操作验收 |
-| 10 窗口/光标 | Form.ClientSize、初始配置、F8窗口/全屏、CursorState转发真实窗口；不再只改stub | 假后端与真实GLFW；完整游戏四次F8切换后正常退出 |
-| 11 P截图 | 按请求JPEG/PNG/BMP/TGA/PPM编码；独立选择源Surface、恢复读FBO/readbuffer/PBO/pack状态；GL行序正确；按物理letterbox读取再回原逻辑尺寸 | 167断言之外另测缩放backbuffer与真实swap后请求：先交换绿帧→P仅排队→画蓝帧→保存蓝帧一次；游戏真实P文件签名FFD8FF |
-| 12 帧节拍 | 真实窗口负责等待，保留原MainProcess逻辑帧比与fixed-FPS滞后上限；按配置设置VSync；windowed interval>1仍用软件限速，fullscreen可用swap interval2/3 | 实际GLFW30Hz为13帧/约407ms；假后端验证windowed/fullscreen与interval策略，不宣称多刷新率驱动已全部实测 |
-| 13 旧中文存档 | DES Key/IV/hex容器不变；严格UTF8解码失败后尝试CP936，保留载入编码；编码失败发生在写入前 | CP936/UTF8中文玩家名及字节往返；不使用replacement fallback |
-| 14 坏档保护 | 全部记录解析到临时PlayerData再提交；失败设置LoadError、保留状态并阻止菜单自动Save；正常写入Flush并原子替换、留.bak | 坏档→载入失败→自动保存原字节不变；中途坏记录回滚；正常备份、写/编码失败不丢原文件 |
-| 15 Replay | 固定文化写数字；按旧ToString语法接受单逗号小数，包括195,195；拒绝混合分隔/非有限值；验证关卡标识及初始/最终记录；EOF不再生成-257 | 多locale、旧中文标题、合法4080、空/半键、完整头但缺记录；保留结局LastStage=All。播放意外EOF关闭流、清键、报错并回标题，停止模拟 |
-| 16 WAV文件 | 文件名构造在复制后立即释放输入；Stream重载明确由调用方持有 | 独占打开、正常/失败路径释放断言 |
-| 17 可见错误 | MessageBox适配输出标题/错误到stderr；配置解析失败明确停止而非保存半套参数 | 隔离错误及坏档测试可观测，不把空弹框当成功 |
-| 18 单实例 | 数据根目录文件锁，防同一存档目录多实例并发写 | 独立进程争锁、释放重开；不同数据根可分别运行 |
-| 19 加载线程 | Stop等待完成，超时明确抛TimeoutException；关闭超时先取消Close、不保存/释放仍被worker使用的共享资源 | 慢worker超时及完成worker测试；独立审查核对取消分支位于资源释放前；未伪称可以跨平台强杀线程 |
+ClientSize、初始配置、F8 与光标状态转发真实窗口。 窗口关闭执行保存、录像关闭和资源释放。
+加载线程停止超时抛 `TimeoutException`， 取消关闭，不保存或释放仍被工作线程使用的资源。
 
-## 回归入口和运行记录
+同一数据根使用文件锁防止多实例并发写。 不同数据根可分别运行。
+错误通过 stderr 输出标题及原因。 配置解析失败停止启动，不保存不完整参数。
 
-从项目根运行（无桌面显示时用 `xvfb-run -a` 包裹）：
+## 列表遍历与随机顺序
+
+原 ForEach 调用使用 `ListCompat.LegacyItems`。 遍历每轮读取实时长度并按索引访问：
+删除当前元素会跳过左移项，尾部追加可在同轮访问。 不能替换为快照或使用检查版本号的枚举器。
+
+视觉对象更新可能消耗关卡共享 RNG。 排除纯绘制计算时仍需保留随机调用及对象更新顺序。
+数学和 RNG 规则见[数学兼容][math]。
+
+[math]: MATH_COMPATIBILITY_2026.md
+
+## 存档与 Replay
+
+存档保留 DES 密钥、IV、CBC、填充和十六进制容器。 文本先严格尝试 UTF-8，再尝试 CP936，
+保存时保留载入编码，不使用替代字符吞掉错误。 无法无歧义识别同时合法的两种编码时采用 UTF-8。
+
+载入先解析到临时 PlayerData，全部成功后提交。 失败设置 LoadError 并保留原状态，阻止自动 Save。
+保存先完成编码，再 Flush、原子替换并保留 `.bak`。 坏档禁止自动覆盖是明确的数据保护行为。
+
+Replay 使用固定文化写数字。 读取接受原写入语法中的单逗号小数，含三位小数；
+混合分隔符、非有限值、非法关卡和截断记录明确拒绝。 结局标记 `LastStage=All` 有效。
+意外 EOF 关闭流、清键、报错并返回标题，停止模拟。 开发专用 Stage_test 不属于回放菜单支持范围。
+
+测试必须在临时目录读写 Score、Replay 与截图。 同版本录制/回放一致不代表所有原版录像兼容。
+
+## 字体、截图与音频
+
+Font 默认构造器使用 point，按 96 DPI 转像素； 显式 GraphicsUnit 与原生像素高度构造器保留单位。
+测量、换行与绘制共用布局和回退规则。 字体与编码见[字体与图像][fonts]。
+
+[fonts]: FONTS_AND_IMAGES_2026.md
+
+游戏内 P 键只排队一次截图请求， 在本帧绘制后、交换前捕获，默认保存 JPEG。
+按实际内容区域读回，再还原到 640×480。 读回恢复 framebuffer、readbuffer、PBO 与 pack 状态。
+窗口缩放规则见[窗口缩放][window]。
+
+[window]: WINDOW_SCALING_2026.md
+
+BGM 保留循环点，暂停恢复延续原样本游标。 音量与声像独立；音效重播不重建即将清除的旧 PCM。
+文件名 WAV 构造器复制后释放输入； Stream 重载不接管调用方流。
+播放细节见[音频后端][audio]。
+
+[audio]: AUDIO_BACKENDS.md
+
+## 帧节奏
+
+窗口负责等待，保留原逻辑帧比与 fixed-FPS 滞后上限。 按配置设置 VSync；窗口模式 interval 大于 1
+仍使用软件限速，全屏可使用 swap interval 2/3。
+
+`FinishFrameTiming` 按累计欠帧等待 deadline， 执行 16.62ms 采样循环，再按 DelayTolerance 补偿。
+VSync 且 interval 为 1 或全屏时提前返回。 游戏自行计时时不叠加 GLFW FramesPerSecond 限速。
+非推进回调不计为新游戏帧。
+
+## 验证方式与范围
 
 ```sh
-ALSOFT_DRIVERS=null xvfb-run -a sh tools/run-behavior-regressions.sh
-ALSOFT_DRIVERS=null xvfb-run -a sh tools/run-shader-regressions.sh
+ALSOFT_DRIVERS=null xvfb-run -a \
+  sh tools/run-behavior-regressions.sh
+ALSOFT_DRIVERS=null xvfb-run -a \
+  sh tools/run-shader-regressions.sh
 ```
 
-`ALSOFT_DRIVERS=null`避免测试实时WAV占用实体输出；音频suite另外使用真实OpenAL Soft loopback核对输出样本，不用“声音启动次数”代替正确性。
+行为入口包含列表、音频、DES、存档、文本截图、 窗口输入、配置、构建警告、Skia 与窗口缩放检查。
+像素、音频样本、真实进程退出和临时文件为观察依据。 自动焦点、节拍或软件设备测试不能替代真人设备体验。
 
-行为入口运行五套严格回归：
-
-| suite | 已验证 |
-|---|---|
-| ListCompatibility | 8个索引/事件断言，外加后台线程和实际背景顺序回归 |
-| AudioCompatibility | 162断言；实时AL+确定性loopback |
-| SaveCompatibility | 84断言；CP936/UTF8、坏档/备份、Replay数字/记录/EOF/正常结局 |
-| TextScreenshotCompatibility | 167严格断言；另有缩放backbuffer及交换后P时序回归 |
-| WindowInputCompatibility | 109断言；含3个实际游戏进程、GLFW窗口与软件节拍 |
-
-八套shader/lighting回归也全通过，含110个光照像素断言；两套入口不能彼此替代。实际输出记录：
-
-- `/tmp/thsss-behavior-all-fixed.log`：行为suite全退出0；测试坏档产生的 `[Score Error]` 是预期负例，不是验收失败。
-- `/tmp/thsss-behavior-final-shaders.log`：八套渲染suite退出0。
-- `/tmp/thsss-behavior-publish.log`：Release publish成功。
-- `/tmp/thsss-behavior-integration-final.log`：不设THSSS_DATA_ROOT，从独立发布目录进入关卡、暂停、恢复、P截图、Alt+F4有序退出0。生成非空实际AutoSave.rpy（最终记录1506字节）、Score及.bak，真实JPEG文件以FFD8FF开头。因自动测试使用隐藏Xvfb窗口，不将其冒充真人焦点/听感验收。
-
-发布启动同时创建空的BPic目录，保留原包允许无额外弹形遮罩的情况；没有文件的资源目录不会由publish自动复制，此前会出现与实际内容无关的LoadBPic警告。
-
-## 独立评审闭环
-
-- 音频复核未发现高置信新增缺陷。
-- 窗口评审指出Enter别名聚合问题：已修，并新增主Enter+小键盘Enter同时按住测试。
-- 存档评审指出三位逗号小数及缺少关卡记录：已修；另外保留真正结局 `LastStage=All`，避免格式验证误拒正常结束录像。
-- 截图评审指出按P发生在本帧绘制前：改为只排队，Program在绘制后/交换前捕获；用真实SwapBuffers再取新帧测试。
-- 最后只读复核通过上述四条关联修改，未发现高置信剩余缺陷；运行结果仍以实际测试日志为准。
-
-## 原列表顺序依据
-
-原版调用List.ForEach；pre-.NET-4.5实现每轮读取实时_size并执行_items[index]。删除当前元素后索引照常递增，跳过左移项；尾部追加同轮访问，不等价于ToArray。2026-10-20核对的历史实现参考：
-
-- https://github.com/microsoft/referencesource/blob/master/mscorlib/system/collections/generic/list.cs
-- https://gist.github.com/3288283 （mscorlib4.0反编译记录，直接索引循环）
-- https://stackoverflow.com/questions/69601488/how-does-the-listt-foreachactiont-action-method-actually-work （包含4.5兼容开关）
-
-测试用明确实时索引参考与真实游戏EventCtrl/Execution.Update比较，不用快照与自身比较。参考资料和验证日期保持分离，不伪造历史API新版年份。
-
-## 仍需如实保留的边界
-
-1. 原Windows CLR2+SlimDX环境仍不可执行，没有做全关/旧Replay逐帧金标准。此轮关闭的是已审计的具体缺陷，不是证明所有未知行为完全一致。
-2. 未标编码、同时合法的UTF8/CP936字节无法无歧义判源；当前UTF8优先，但保留载入编码和备份，不以替代字符吞掉非法字节。不能保证任意第三方ACP编码都可识别。
-3. 非有限或混合数字分隔的Replay明确拒绝；原写入不会生成分组符，单逗号包括三位小数按小数处理，不再错误拒绝。未支持开发专用Stage_test回放菜单。
-4. 无实体手柄、不同显示器刷新率/驱动VSync和实体扬声器听感测试；自动设备/节拍/样本断言不冒充人工验收。
-5. 仍有旧ini-parser的NU1701兼容警告与GTK主题警告；实际编译/测试成功。AFT C#语言服务初始化失败不能当作代码诊断通过。
-6. 机器上装有 Wine 与 Mono 不等于能运行原版 CLR2 + SlimDX，原 Windows 运行基线仍未建立。
-7. `Matrix.Invert` 仍返回 Identity；游戏活动中没有找到调用点，属于潜在兼容缺口，不是已知关卡故障。
-8. 坏档禁止自动覆盖、原子备份、截断录像明确拒绝，是与原版有意的差异，不为了字面一致撤销。
-
-## 字体与帧节奏
-
-- **字体单位**：`Font(name, size)`、`Font(name, size, style)` 显式设置 `Unit = GraphicsUnit.Point`，与 GDI+ 默认一致；带 `GraphicsUnit` 参数的构造器语义不变，DX Font 按像素高度的原生构造器仍传 Pixel。默认 16pt 等价 21.33px，`TextScreenshotCompatibility` 以严格相等断言覆盖，并与 16px 区分。主菜单、ED、关卡提示、StoryBox、DescriptionBox 都是原版使用 point 的位置，未逐个改字号。
-- **帧节奏**：`FinishFrameTiming` 由生产计时器提供时长、Sleep 与推帧，先按累计欠帧等待到 deadline，再做 16.62ms 采样循环，最后按 `DelayTolerance` 补偿。`verticalSync && (presentInterval == 1 || fullWindow)` 提前返回，与原版一致。`ConfigurePresentation(..., gameOwnsPacing: true)` 此时不再叠加 GLFW `FramesPerSecond`，其他场景保持原行为。
-  - 确定性验证：`FrameTiming.cs` 用生产函数对比原版公式，144 种场景 × 30 帧（FixedFPS 0/1、100/500ms 卡顿、PresentInterval 1–3、DelayTolerance 0/2/10、全屏/同步/启动画面组合）一致。
-  - 真实循环：隐藏 GLFW + 真实时钟，卡顿后 FixedFPS=0 恢复约 16.7ms/帧；FixedFPS=1 出现 5 个几乎立即的追帧，随后回到 16.49ms/帧。
+设备热插拔、手柄手感、显示器 VSync 和扬声器听感 需要相应硬件运行检查。
+有限行为用例不构成所有关卡、所有旧录像的兼容证明。

@@ -1,50 +1,83 @@
-# 渲染后端（2026-10-28）
+# 渲染后端（2026）
 
 ## 选择
 
-| 系统 | 默认 | 可选 |
-|---|---|---|
-| Linux、Windows | OpenGL | Vulkan |
-| macOS | 原生Metal | OpenGL作为兼容路径 |
+Linux、Windows 默认 OpenGL，可选 Vulkan。 macOS 默认原生 Metal，可选 OpenGL。
+`THSSS_RENDERER=gl|vk|metal` 显式选择后端。 未知值、设备或窗口表面不可用均明确报错。
 
-`THSSS_RENDERER=gl|vk|metal`。未知值明确报错；设备或窗口表面不可用不静默替换API。macOS Metal实现、构建依赖与验证边界见[MACOS_2026.md](MACOS_2026.md)。Vulkan窗口仅接通Win32/X11/Wayland，没有宣称MoltenVK窗口支持。
+Vulkan 使用 1.3 特性，窗口接入 Win32/X11/Wayland。
+Metal 直接调用系统框架，不经 MoltenVK。
+macOS 构建和运行见 [macOS][mac]。
 
-## 契约
+[mac]: MACOS_2026.md
 
-`IRenderBackend`包含资源、uniform块、绘制、采样/混合/深度状态、帧生命周期与呈现。原版D3D9兼容层保持游戏逻辑坐标640×480，窗口按Framebuffer像素尺寸渲染，详见[WINDOW_SCALING_2026.md](WINDOW_SCALING_2026.md)。
+## 公共契约
 
-OpenGL由窗口层持有上下文并交换缓冲。Vulkan与Metal使用无GL上下文窗口，各自管理原生设备及呈现。兼容层仍有GL专用优化/诊断分支，不能声称所有文件完全无GL引用。新后端需实现资源所有权、状态映射与native窗口入口，而不是修改关卡或弹幕公式。
+`IRenderBackend` 管理资源、uniform、绘制、采样、 混合、深度、帧生命周期与呈现。
+兼容层保持 640×480 游戏逻辑坐标， 窗口使用实际 framebuffer 像素尺寸。 缩放规则见[窗口缩放][window]。
 
-Vulkan使用1.3特性，帧内批量录制并快照顶点/uniform数据，fence完成后回收描述符和上传内存。资源销毁、读回或更新需要时允许flush；不能把“一帧一提交”视为所有场景不变的约束。静态文字仅缓存每个字体最近一份字形纹理，避免无限增长。
+[window]: WINDOW_SCALING_2026.md
 
-Sprite 在 Draw 时将当前变换写入齐次顶点，同纹理的旋转/缩放不再各自强制提交；原生句柄包装对象的引用不参与合批判断。Device/FX 在改变绘制状态和目标前提交待绘顶点，文字使用显式 Flush 保证缓存纹理生命周期。2026-10-29 的这组改动仅静态审查，尚未重新构建或取得设备性能数据，详见 macOS 文档。
+OpenGL 由窗口层持有上下文并交换缓冲。 Vulkan/Metal 使用无 GL 上下文窗口，自行呈现。
+兼容层包含 GL 专用优化和诊断分支。 非 GL 后端同样接收设备状态、光照与深度写入设置。
 
-Metal直接调用系统框架，不经MoltenVK；MSL由同一份GLSL转译。发布包预存MSL后不需要运行时转换工具；开发环境可用glslangValidator与spirv-cross。Vulkan当前仍需要glslangValidator运行时转换，不能把Metal缓存描述套用到Vulkan。
+新后端需实现资源所有权、状态映射与原生窗口接入。 关卡逻辑、弹幕公式与游戏资源坐标保持不变。
 
-Mac 实机采样中主线程约 80.6% 的样本停在 Metal `waitUntilCompleted`，对应旧实现逐次 Draw/Clear 提交并等待的路径。Metal 现改为帧内录制、相同目标和深度的 encoder 复用、顶点上传快照，以及呈现/帧结束集中提交；CPU 读回、已用纹理更新和尺寸变化仍先同步。本轮仅静态修改，尚无优化后帧率或画面验证结果。
+## 批次、同步与资源
 
-## 状态与资源
+Sprite 在 Draw 时将变换写入齐次顶点。 同纹理的旋转/缩放可合批；纹理按对象身份比较。
+绘制状态、目标或 FX 参数变化前提交待绘顶点。 文字更新或释放字形纹理前显式 Flush。
 
-- Device状态更新与是否存在GL上下文无关，所有非GL后端也必须收到混合、深度写入与光照设置。
-- `Usage.RenderTarget`走渲染纹理工厂，原生图像需要合法附件用途。
-- Sprite 按 D3DXSprite.Begin 建立线性过滤和 Clamp，在 Flush 的 FX 绑定前应用设备采样状态，防止沿用 3D 点采样导致大块纹素。End 恢复原采样状态，尊重 DoNotModifyRenderState/DoNotSaveState；共享路径同时影响 GL/Vulkan/Metal，本轮仅静态修改。
-- Metal 用 RGBA8 存储提供 RGB8 逻辑语义，保证原版 X8R8G8B8 中间目标的 Alpha 为 1：RGB 上传补 1、清屏固定 1、管线屏蔽 Alpha 写入。原 PNG/RGBA 与源 Alpha 混合保留，管线缓存区分逻辑格式；修复半透明场景经 Filter 再次衰减的问题，尚未做 Mac 画面复测。
-- 深度附件尺寸必须匹配目标；外部附件借用，不在Framebuffer销毁时释放；摘除外部附件恢复目标自己的深度。
-- `BeginFrame`/`EndFrame`在提前返回或异常时也配对；原生提交失败保留具体错误信息。
-- OpenGL uniform buffer 仅在完整更新的字节内容完全相同时省略上传，仍执行普通与索引绑定；局部更新使缓存失效，顶点与索引数据不走此缓存。`GraphicsCompatibility/UniformBufferReadback.cs` 读回实际 GPU 数据，覆盖重复/变化/局部更新、独立 buffer、绑定恢复、空更新与释放后调用；不以 CPU 缓存命中替代像素验收。
-- Vulkan acquire只在Success/Suboptimal后等待关联fence，不在Timeout/OutOfDate时等待未提交fence。
-- Metal 为 shader 保留但顶点流未提供的属性绑定 `(0,0,0,1)` 常量流，不能依靠运行时 uniform 分支跳过顶点描述符校验。常量流槽 29、实际顶点槽 30，uniform 槽 0–28。流布局必须有属性引用；完整布局不配置槽 29，缺失布局才配置并绑定常量流，此条件与管线一起缓存。修复针对 Mac 实机反馈的缺失属性错误及无引用槽 29 原生断言，本轮仅静态修改，尚未复测。
+Vulkan 帧内录制并快照顶点及 uniform。 fence 完成后回收描述符和上传内存。
+Metal 同目标与深度附件的连续绘制复用 encoder， 在呈现或帧结束集中提交。
+读回、更新已用纹理、尺寸变化可要求提前同步。 一帧一次提交不是所有 API 场景的固定限制。
+
+`Usage.RenderTarget` 使用渲染纹理工厂。 深度附件尺寸必须匹配目标。
+外部附件为借用资源，不随 framebuffer 释放； 摘除外部附件后恢复目标自己的深度。
+`BeginFrame` 与 `EndFrame` 在异常和提前返回时配对。
+
+Vulkan acquire 只在 Success/Suboptimal 后
+等待关联 fence；Timeout/OutOfDate 不等待未提交帧。
+
+## 状态和格式
+
+Sprite Begin 默认采用 Clamp 与线性过滤。 Flush 在绑定 FX 前应用当前设备采样状态。
+End 恢复原状态，遵守以下标志：
+
+- `DoNotModifyRenderState`：保留调用方状态
+- `DoNotSaveState`：不恢复原状态
+
+Metal 以 RGBA8 存储提供逻辑 RGB8： 上传及清屏的 Alpha 固定为 1，管线只写 RGB。
+普通 PNG/RGBA 仍保留源 Alpha 和混合语义。 管线缓存区分 RGB 与 RGBA 逻辑格式。
+
+Metal 为 shader 保留但顶点流缺失的属性 提供 `(0,0,0,1)` 常量流。
+槽 29 用于缺失属性，槽 30 用于真实顶点， uniform 使用槽 0–28。
+只有布局引用缺失属性时才配置并绑定常量流。
+
+OpenGL uniform buffer 只有在完整更新内容相同 时才省略上传，普通绑定与索引绑定仍执行。
+局部更新使缓存失效；顶点和索引不使用此缓存。 文字对象只缓存最近一份字形纹理。
+
+## 着色器与诊断
+
+Metal MSL 来自共享 GLSL 源的转换。 发布缓存齐全时不需要运行时转换工具。
+Vulkan 仍需 `glslangValidator` 运行时转换。
+
+`THSSS_DIAG_FPS=1` 输出 FPS、mainMs 和后端。 Vulkan 输出当前帧的提交及绘制数。
+Metal 输出区间内每帧平均值： submits、draws、passes、waitMs、uploadKiB。
+waitMs 是 CPU 同步等待，不是纯 GPU 执行时间。
+
+性能测量保持 framebuffer、Replay 输入与配置一致。 关闭 `THSSS_DIAG_PRESENT` 和 `THSSS_DIAG_VK_PIXELS`，避免读回同步干扰。
 
 ## 验证
 
 ```sh
-ALSOFT_DRIVERS=null xvfb-run -a sh tools/run-shader-regressions.sh
-ALSOFT_DRIVERS=null xvfb-run -a sh tools/run-behavior-regressions.sh
+ALSOFT_DRIVERS=null xvfb-run -a \
+  sh tools/run-shader-regressions.sh
+ALSOFT_DRIVERS=null xvfb-run -a \
+  sh tools/run-behavior-regressions.sh
 sh tools/run-mac-regressions.sh
 ```
 
-既有渲染9项、行为10项；不是每个用例都在所有API上执行。GL包括FX CPU/GPU数值对照和110项光照，Vulkan包括真实Sprite、透明合成、菜单图集、批量快照、深度和帧缓冲往返。Mac入口独立验证真实P/Invoke软件API驱动及真实shader转译，不能冒称Apple驱动光栅化验收。
-
-Linux原生Wayland及X11的GL/Vulkan窗口实际运行通过；Vulkan菜单稳定阶段约60FPS、1提交/帧，关卡可暂停/恢复/退出。VK/GL菜单中心RGB均为(166,188,243)，非锁帧动画截图的整幅每通道平均绝对差小于1，不能证明所有场景逐像素一致。Mac没有把GPU加速当作API验证前提，但Apple系统运行、实体设备性能和完整关卡听感未由软件驱动证明。
-
-诊断：`THSSS_DIAG_FPS=1` 约每秒输出实际 FPS、mainMs 和 renderer；Vulkan 保留当前帧提交/绘制数，Metal 输出区间内每帧平均 submits/draws/passes/waitMs/uploadKiB。waitMs 代表 CPU 同步等待，非纯 GPU 时间。读回诊断会额外同步，测性能时不要开启 THSSS_DIAG_PRESENT 或 THSSS_DIAG_VK_PIXELS。
+GL 检查 FX 数值、纹理上传和光照像素。 Vulkan 检查 Sprite、合成、深度及帧缓冲往返。
+mac 软件驱动检查 P/Invoke 与着色器转换契约， 不替代 Apple GPU 光栅化、设备性能与完整关卡检查。
+各 API 的用例覆盖不同，不承诺全场景逐像素一致。
