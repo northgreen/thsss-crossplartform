@@ -99,6 +99,13 @@ namespace THSSS.Config { internal static class ConfigSettings { public const str
             text=True,
         )
 
+    def assert_directory_identity(self, actual, expected):
+        actual, expected = Path(actual), Path(expected)
+        self.assertTrue(actual.is_absolute(), f"relative directory returned: {actual}")
+        self.assertTrue(actual.is_dir(), f"missing directory returned: {actual}")
+        # .NET may expand Windows 8.3 names or macOS /var symlinks.
+        self.assertTrue(actual.samefile(expected), f"different directories: {actual} != {expected}")
+
     def test_args_cwd_default_root_exit_code(self):
         arguments = [
             "space value",
@@ -113,8 +120,8 @@ namespace THSSS.Config { internal static class ConfigSettings { public const str
         self.assertEqual(result.returncode, 37, result.stderr)
         observation = json.loads(result.stdout)
         self.assertEqual(observation["args"], arguments)
-        self.assertEqual(Path(observation["cwd"]), self.launcher)
-        self.assertEqual(Path(observation["root"]), self.launcher)
+        self.assert_directory_identity(observation["cwd"], self.launcher)
+        self.assert_directory_identity(observation["root"], self.launcher)
         self.assertFalse((self.launcher / "INJECTION").exists())
 
     def test_inherited_data_root_is_unchanged(self):
@@ -125,8 +132,8 @@ namespace THSSS.Config { internal static class ConfigSettings { public const str
         result = self.launch(data_root=data_root)
         self.assertEqual(result.returncode, 37, result.stderr)
         observation = json.loads(result.stdout)
-        self.assertEqual(observation["root"], data_root)
-        self.assertEqual(Path(observation["cwd"]), Path(data_root))
+        self.assert_directory_identity(observation["root"], data_root)
+        self.assert_directory_identity(observation["cwd"], data_root)
         self.assertEqual(marker.read_bytes(), b'untouched fake player file')
 
     def test_relative_data_root_is_resolved_before_changing_directory(self):
@@ -136,8 +143,8 @@ namespace THSSS.Config { internal static class ConfigSettings { public const str
         result = self.launch(data_root=relative)
         self.assertEqual(result.returncode, 37, result.stderr)
         observation = json.loads(result.stdout)
-        self.assertEqual(Path(observation['root']), expected)
-        self.assertEqual(Path(observation['cwd']), expected)
+        self.assert_directory_identity(observation['root'], expected)
+        self.assert_directory_identity(observation['cwd'], expected)
 
     def test_external_data_apply_and_launch_finds_package_game(self):
         data_root = self.root / 'external apply-and-launch data'
@@ -150,8 +157,8 @@ namespace THSSS.Config { internal static class ConfigSettings { public const str
             time.sleep(.05)
         self.assertTrue(marker.is_file(), 'ConfigWorkspace failed to launch the actual package-root game')
         observation = json.loads(marker.read_text())
-        self.assertEqual(Path(observation['root']), data_root)
-        self.assertEqual(Path(observation['cwd']), self.launcher)
+        self.assert_directory_identity(observation['root'], data_root)
+        self.assert_directory_identity(observation['cwd'], self.launcher)
 
     def test_missing_data_root_fails_without_creating_it(self):
         data_root = self.root / 'missing player data'
@@ -163,7 +170,35 @@ namespace THSSS.Config { internal static class ConfigSettings { public const str
     def test_empty_data_root_uses_package_root(self):
         result = self.launch(data_root="")
         self.assertEqual(result.returncode, 37, result.stderr)
-        self.assertEqual(Path(json.loads(result.stdout)["root"]), self.launcher)
+        self.assert_directory_identity(json.loads(result.stdout)["root"], self.launcher)
+
+    def test_data_root_directory_alias(self):
+        target = self.root / 'canonical player data'
+        target.mkdir()
+        alias = self.root / 'aliased player data'
+        if os.name == 'nt':
+            # Directory junctions do not require Windows symlink privileges.
+            result = subprocess.run(
+                ['cmd', '/c', 'mklink', '/J', str(alias), str(target)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        else:
+            alias.symlink_to(target, target_is_directory=True)
+        result = self.launch(data_root=str(alias))
+        self.assertEqual(result.returncode, 37, result.stderr)
+        observation = json.loads(result.stdout)
+        self.assert_directory_identity(observation['root'], target)
+        self.assert_directory_identity(observation['cwd'], target)
+
+    def test_directory_identity_rejects_wrong_missing_and_relative_paths(self):
+        expected = self.root / 'identity expected'
+        wrong = self.root / 'identity wrong'
+        expected.mkdir()
+        wrong.mkdir()
+        for actual in (wrong, self.root / 'identity missing', Path('.')):
+            with self.subTest(actual=str(actual)), self.assertRaises(AssertionError):
+                self.assert_directory_identity(actual, expected)
 
     def test_missing_child_fails_clearly_without_data_changes(self):
         app = self.launcher / "ConfigApp"
